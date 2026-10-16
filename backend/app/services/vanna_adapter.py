@@ -54,38 +54,66 @@ def _build_vanna_engine():
     - ChromaDB_VectorStore 提供训练数据的向量持久化与相似召回；
     - Ollama 提供本地 LLM 推理（submit_prompt / generate_embedding）。
     返回 (engine, None) 或 (None, error_str)。
+
+    韧性设计（2026-10-16）：原实现把组合类写死为
+        class VannaEngine(ChromaDB_VectorStore, Ollama)
+    一旦该基类顺序在特定依赖组合下触发
+    `TypeError: Cannot create a consistent method resolution order (MRO)`，
+    就永久判定 NL2SQL 不可用。这里改为**按优先级依次尝试多种组合**，
+    并保留反序组合作为退路；全部失败才降级，且把真实异常原文一并返回，便于定位。
     """
     try:
         from vanna.chromadb import ChromaDB_VectorStore
         from vanna.ollama import Ollama
-
-        class VannaEngine(ChromaDB_VectorStore, Ollama):
-            """Vanna 组合引擎：向量召回（ChromaDB）+ 本地 LLM（Ollama）。"""
-
-            def __init__(self, config=None):
-                ChromaDB_VectorStore.__init__(self, config=config)
-                Ollama.__init__(self, config=config)
-
-        model = getattr(settings, "LLM_MODEL", "qwen3:1.7b") or "qwen3:1.7b"
-        ollama_host = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434") \
-            or "http://localhost:11434"
-        chroma_path = getattr(settings, "VANNA_CHROMA_PATH", None) or "./vanna_chroma"
-
-        config = {
-            "model": model,
-            "ollama_host": ollama_host,
-            "path": chroma_path,
-            "allow_llm_to_see_data": False,
-        }
-        engine = VannaEngine(config=config)
-        logger.info(
-            f"Vanna.ai 引擎真实实例化成功：model={model}, host={ollama_host}, "
-            f"vector_store=ChromaDB({chroma_path})"
-        )
-        return engine, None
     except Exception as e:
-        logger.warning(f"Vanna.ai 引擎实例化失败，降级 Ollama fallback: {e}")
-        return None, str(e)
+        err = f"vanna 依赖导入失败: {type(e).__name__}: {e}"
+        logger.warning(err)
+        return None, err
+
+    model = getattr(settings, "LLM_MODEL", "qwen3:1.7b") or "qwen3:1.7b"
+    ollama_host = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434") \
+        or "http://localhost:11434"
+    chroma_path = getattr(settings, "VANNA_CHROMA_PATH", None) or "./vanna_chroma"
+
+    config = {
+        "model": model,
+        "ollama_host": ollama_host,
+        "path": chroma_path,
+        "allow_llm_to_see_data": False,
+    }
+
+    def _vanna_init(self, config=None):
+        """显式依次初始化两个父类——type() 动态建类时不会自动把两个 __init__ 都跑到"""
+        ChromaDB_VectorStore.__init__(self, config=config)
+        Ollama.__init__(self, config=config)
+
+    # 组合顺序按优先级尝试：官方写法（向量库在前）→ 反序（LLM 在前）
+    attempts = [
+        ("ChromaDB_VectorStore+Ollama", (ChromaDB_VectorStore, Ollama)),
+        ("Ollama+ChromaDB_VectorStore", (Ollama, ChromaDB_VectorStore)),
+    ]
+
+    errors: List[str] = []
+    for label, bases in attempts:
+        try:
+            engine_cls = type("VannaEngine", bases, {"__init__": _vanna_init})
+            engine = engine_cls(config=config)
+            logger.info(
+                f"Vanna.ai 引擎真实实例化成功（组合={label}）：model={model}, "
+                f"host={ollama_host}, vector_store=ChromaDB({chroma_path})"
+            )
+            return engine, None
+        except TypeError as e:
+            # 典型：Cannot create a consistent method resolution order (MRO)
+            errors.append(f"{label} → TypeError: {e}")
+            logger.warning(f"Vanna 组合方式不可用（{label}）: {e}")
+        except Exception as e:
+            errors.append(f"{label} → {type(e).__name__}: {e}")
+            logger.warning(f"Vanna 组合方式不可用（{label}）: {e}")
+
+    err = " | ".join(errors)
+    logger.warning(f"Vanna.ai 引擎实例化失败，降级 Ollama fallback: {err}")
+    return None, err
 
 
 # ==================== Milvus 向量存储（Vanna 训练数据镜像/兜底） ====================
@@ -197,18 +225,23 @@ class VannaAdapter:
         self._vn_error = "Vanna 真实链路已禁用（import 阶段避免连接 Ollama，防启动阻塞），走 Ollama fallback"
         logger.info("VannaAdapter NL2SQL 初始化：禁用 Vanna 引擎实例化（避免 import 期阻塞），统一走 Ollama fallback")
 
-    def ensure_vanna_ready(self, timeout_seconds: float = 3.0):
+    def ensure_vanna_ready(self, timeout_seconds: Optional[float] = None):
         """
         按需构建真实 Vanna 引擎（懒加载，带超时保护）。
 
         仅在真正需要 Vanna 能力时（答辩演示 / 显式开启）调用；避免在 import / 启动
         阶段连接 Ollama。构建失败自动降级 self.vn=None（走 fallback），不抛异常。
+
+        超时默认取 settings.VANNA_INIT_TIMEOUT（15s）。原实现写死 3s，
+        ChromaDB 初始化稍慢就会被误判为"引擎不可用"，进而被当成 NL2SQL 不可用。
         """
+        import concurrent.futures
+
         if self.vn is not None:
             return self.vn is not None
+        timeout_seconds = timeout_seconds or getattr(settings, "VANNA_INIT_TIMEOUT", 15)
         try:
             # 用线程 + 超时包裹实例化，防止 Ollama 不可用时无限阻塞
-            import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 fut = pool.submit(_build_vanna_engine)
                 engine, err = fut.result(timeout=timeout_seconds)

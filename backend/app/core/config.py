@@ -126,6 +126,11 @@ class Settings(BaseSettings):
     OLLAMA_CHAT_TIMEOUT: int = 300
     OLLAMA_EMBED_TIMEOUT: int = 60
 
+    # Vanna NL2SQL 引擎（ChromaDB_VectorStore + Ollama 组合）
+    VANNA_CHROMA_PATH: str = "./vanna_chroma"
+    # 引擎按需构建的超时（秒）：过短会在 ChromaDB 初始化稍慢时误判为不可用
+    VANNA_INIT_TIMEOUT: int = 15
+
     # LLM策略：ollama | silicon_flow（简历解析+NL2SQL用）
     LLM_STRATEGY: str = "ollama"  # 主推理策略
     # SiliconFlow（用于简历解析、NL2SQL等高精度任务）
