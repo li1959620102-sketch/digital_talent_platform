@@ -351,19 +351,70 @@ class TalentService:
         if search_data.department_id:
             query = query.filter(Talent.department_id == search_data.department_id)
         
-        # 向量搜索
-        if search_data.use_vector_search:
-            # TODO: 实现向量搜索
-            logger.info("向量搜索功能开发中...")
-        
+        # 向量语义搜索：use_vector_search=True 且有查询文本时启用
+        # 语义召回拿到的是一批 talent_id（Milvus），再与上面的硬条件（学历/年限/部门/
+        # 数据范围）取交集，最后按语义相似度排序。向量库不可用或为空时自动回退关键词检索，
+        # 保证「有 Milvus 走语义、没 Milvus 也能查」。
+        vector_rank: Optional[Dict[int, float]] = None
+        if search_data.use_vector_search and search_data.query:
+            vector_rank = TalentService._vector_candidate_rank(search_data.query)
+            if vector_rank:
+                query = query.filter(Talent.id.in_(list(vector_rank.keys())))
+            else:
+                logger.info("向量检索无结果或不可用，本次回退关键词检索")
+
         # 统计总数
         total = query.count()
         
         # 分页
         offset = (search_data.page - 1) * search_data.page_size
-        talents = query.order_by(Talent.created_at.desc()).offset(offset).limit(search_data.page_size).all()
+        if vector_rank:
+            # 语义排序无法在 SQL 侧表达（得分在向量库里），候选池已被 IN 限定为百级，内存排序可接受
+            rows = query.all()
+            rows.sort(key=lambda t: vector_rank.get(t.id, 0.0), reverse=True)
+            talents = rows[offset: offset + search_data.page_size]
+        else:
+            talents = query.order_by(Talent.created_at.desc()).offset(offset).limit(search_data.page_size).all()
         
         return talents, total
+
+    # 向量召回候选池上限：避免一次把过多 ID 塞进 IN 子句
+    VECTOR_CANDIDATE_LIMIT = 200
+
+    @staticmethod
+    def _vector_candidate_rank(query_text: str) -> Optional[Dict[int, float]]:
+        """语义召回人才，返回 {talent_id: 相似度}。
+
+        向量服务未初始化、Milvus 无数据或调用异常时统一返回 None，
+        由调用方回退关键词检索——不阻塞、不报错。
+        """
+        try:
+            from app.services.vector_search_service import vector_search_service
+
+            if vector_search_service is None:
+                logger.info("向量检索服务未初始化，回退关键词检索")
+                return None
+
+            hits = vector_search_service.search_matching_talents(
+                query_text=query_text,
+                top_k=TalentService.VECTOR_CANDIDATE_LIMIT
+            )
+
+            rank: Dict[int, float] = {}
+            for hit in hits or []:
+                try:
+                    tid = int(hit.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                score = float(hit.get("score") or 0.0)
+                if score > rank.get(tid, float("-inf")):
+                    rank[tid] = score
+
+            return rank or None
+
+        except Exception as e:
+            logger.warning(f"向量检索失败（回退关键词检索）: {e}")
+            return None
     
     @staticmethod
     def check_duplicate(

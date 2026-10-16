@@ -51,14 +51,19 @@ class ResumeParser:
             else:
                 raise ValueError(f"未知的文件格式: {ext}")
             
-            # 提取结构化信息
+            # 结构化抽取（规则基线；LLM 语义抽取见 resume_parser_agent）
             talent_data = await self._extract_info(text)
-            
+
+            # 置信度按核心字段命中率计算，而不是写死 0.85
+            core_fields = ("name", "phone", "email", "education", "experience_years")
+            hit = sum(1 for f in core_fields if talent_data.get(f))
+            confidence = round(0.5 + 0.5 * hit / len(core_fields), 4)
+
             return {
                 "success": True,
                 "text": text,
                 "talent_data": talent_data,
-                "confidence": 0.85  # 默认置信度
+                "confidence": confidence
             }
             
         except Exception as e:
@@ -130,21 +135,26 @@ class ResumeParser:
     
     async def _extract_info(self, text: str) -> Dict[str, Any]:
         """
-        从文本中提取结构化信息
-        
+        规则基线抽取：从简历文本中抽取结构化字段。
+
+        这是一个**毫秒级、零依赖、永不失败**的快速基线——文件上传后立刻就能得到一份
+        可用的结构化结果，保证"没有模型也能建档"。
+
+        精度更高的 LLM 语义抽取位于 app/agents/resume_parser_agent.py 的 extract_info
+        节点（LangGraph 工作流内，优先 SiliconFlow，未配密钥时自动回退本地 Ollama），
+        其输出会覆盖/补全本方法的结果。两级分工，互不阻塞。
+
         Args:
             text: 简历文本
-            
+
         Returns:
-            结构化人才数据
+            结构化人才数据（无法抽取的字段为 None）
         """
-        # TODO: 使用LLM进行信息提取
-        # 这里先返回基础结构，后续集成LangChain
-        
         import re
-        
+
         talent_data = {
             "name": None,
+            "gender": None,
             "phone": None,
             "email": None,
             "education": None,
@@ -154,44 +164,74 @@ class ResumeParser:
             "current_position": None,
             "self_introduction": None
         }
-        
-        # 提取手机号
-        phone_pattern = r'(?:手机|电话|联系方式)[：:\s]*(\d{11})'
-        phone_match = re.search(phone_pattern, text)
+
+        if not text:
+            return talent_data
+
+        # 手机号：优先带标签，其次裸 11 位（前后不允许再跟数字，避免截断长串）
+        phone_match = (
+            re.search(r'(?:手机|电话|联系方式|联系电话)[：:\s]*(\d{11})', text)
+            or re.search(r'(?<!\d)(1[3-9]\d{9})(?!\d)', text)
+        )
         if phone_match:
             talent_data["phone"] = phone_match.group(1)
-        else:
-            # 直接查找11位数字
-            phone_match = re.search(r'1[3-9]\d{9}', text)
-            if phone_match:
-                talent_data["phone"] = phone_match.group(0)
-        
-        # 提取邮箱
-        email_pattern = r'[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)+'
-        email_match = re.search(email_pattern, text)
+
+        # 邮箱
+        email_match = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+', text)
         if email_match:
             talent_data["email"] = email_match.group(0)
-        
-        # 提取姓名（通常在简历开头）
-        lines = text.split('\n')
-        if lines:
-            # 假设第一行是姓名
-            first_line = lines[0].strip()
-            if len(first_line) <= 4 and not re.search(r'\d', first_line):
+
+        # 姓名：优先"姓名：XXX"标签；否则取首行纯中文短串
+        name_match = re.search(r'(?:姓名|姓\s*名)[：:\s]*([\u4e00-\u9fa5·]{2,4})', text)
+        if name_match:
+            talent_data["name"] = name_match.group(1)
+        else:
+            first_line = text.split('\n')[0].strip()
+            if 2 <= len(first_line) <= 4 and re.fullmatch(r'[\u4e00-\u9fa5·]+', first_line):
                 talent_data["name"] = first_line
-        
-        # 提取学历
-        edu_pattern = r'(本科|硕士|博士|大专|高中)'
-        edu_match = re.search(edu_pattern, text)
-        if edu_match:
-            talent_data["education"] = edu_match.group(1)
-        
-        # 提取工作年限
-        exp_pattern = r'(\d+)\s*年.*经验'
-        exp_match = re.search(exp_pattern, text)
+
+        # 性别
+        gender_match = re.search(r'性别[：:\s]*(男|女)', text)
+        if gender_match:
+            talent_data["gender"] = gender_match.group(1)
+
+        # 学历：取最高学历（按 博士 > 硕士 > 本科 > 大专 > 高中 顺序命中）
+        for edu in ("博士", "硕士", "本科", "大专", "高中"):
+            if edu in text:
+                talent_data["education"] = edu
+                break
+
+        # 专业
+        major_match = re.search(r'专业[：:\s]*([\u4e00-\u9fa5A-Za-z]{2,20})', text)
+        if major_match:
+            talent_data["major"] = major_match.group(1).strip()
+
+        # 工作年限："X年工作经验"/"X年以上经验" 或 "工作年限：X 年"
+        exp_match = (
+            re.search(r'(\d{1,2})\s*年(?:以上)?(?:工作)?(?:经验|经历)', text)
+            or re.search(r'(?:工作年限|工作经历)[：:\s]*(\d{1,2})\s*年', text)
+        )
         if exp_match:
             talent_data["experience_years"] = int(exp_match.group(1))
-        
+
+        # 当前公司
+        company_match = re.search(
+            r'(?:现就职于|任职于|所在公司|公司名称|工作单位)[：:\s]*([\u4e00-\u9fa5A-Za-z0-9（）()]{2,30})',
+            text
+        )
+        if company_match:
+            talent_data["current_company"] = company_match.group(1).strip()
+
+        # 当前职位
+        position_match = re.search(r'(?:职位|岗位|职务)[：:\s]*([\u4e00-\u9fa5A-Za-z0-9]{2,20})', text)
+        if position_match:
+            talent_data["current_position"] = position_match.group(1).strip()
+
+        # 自我评价：标签后同行的内容
+        intro_match = re.search(r'(?:自我评价|个人简介|自我介绍)[：:\s]*([^\n]{0,200})', text)
+        if intro_match and intro_match.group(1).strip():
+            talent_data["self_introduction"] = intro_match.group(1).strip()
+
         return talent_data
 
 

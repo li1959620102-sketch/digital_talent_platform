@@ -10,7 +10,7 @@ import logging
 
 from app.agents.graph_runtime import compile_graph, invoke_graph
 from app.core.database import get_mysql_session
-from app.core.llm_factory import get_silicon_flow_llm
+from app.core.llm_factory import get_agent_llm
 from app.models.talent import Talent
 from app.models.position import JobPosition
 from app.models.assessment import AssessmentResult
@@ -49,8 +49,8 @@ def _get_llm():
     global _llm
     if _llm is None:
         try:
-            _llm = get_silicon_flow_llm(temperature=0.1)
-            logger.info("培训赋能Agent LLM初始化成功: SiliconFlow DeepSeek-V4-Flash")
+            _llm = get_agent_llm(temperature=0.1)
+            logger.info("培训赋能Agent LLM初始化成功（SiliconFlow 或回退本地 Ollama）")
         except Exception as e:
             logger.warning(f"培训赋能Agent LLM初始化失败: {e}，使用规则降级")
     return _llm

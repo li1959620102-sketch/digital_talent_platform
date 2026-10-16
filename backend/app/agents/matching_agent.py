@@ -12,9 +12,11 @@ from app.agents.graph_runtime import compile_graph, invoke_graph
 from app.core.database import get_mysql_session
 from app.core.milvus_client import MilvusService
 from app.core.config import settings
+from app.core.llm_factory import get_agent_llm
 from app.core.run_async import run_async
 from app.models.talent import Talent
 from app.models.position import JobPosition, PositionStatus
+from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,111 @@ def _skill_names(items) -> List[str]:
         n = _normalize_skill(s)
         if n:
             result.append(n)
+    return result
+
+
+# LLM 精排的候选上限：本地 CPU 模型单次推理可达数十秒，
+# 只对粗排 TOP-N 做语义精排，其余沿用粗排分，避免整批候选串行推理超时。
+LLM_RERANK_TOP_N = 10
+
+_llm = None
+
+
+def _get_llm():
+    """惰性构建 Agent LLM：优先 SiliconFlow，未配密钥时自动回退本地 Ollama；均不可用返回 None"""
+    global _llm
+    if _llm is None:
+        _llm = get_agent_llm(temperature=0.1)
+    return _llm
+
+
+def _rule_match_score(
+    cand_edu,
+    cand_exp,
+    cand_skills,
+    req_edu,
+    req_exp,
+    req_skills
+) -> float:
+    """规则匹配分（0~100）。
+
+    权重与生产匹配接口 app/api/v1/matching.py::compute_match_score 保持一致：
+    学历 30 + 经验 25 + 技能 45 + 经验加成 min(10, 年限×0.3)，学历不达标直接 0 分。
+
+    用途：向量库无数据 / 检索未命中 / LLM 不可用时的**确定性兜底**。
+    取代原先 "30 + 学历 + 经验 + id % 25" 的写法——那种分数与候选人能力无关，
+    只是让分数看起来有区分度，属于伪区分度。
+    """
+    # 学历（不满足直接 0 分，与生产接口一致）
+    if req_edu and _edu_index(cand_edu) < _edu_index(req_edu):
+        return 0.0
+    score = 30.0
+
+    # 经验
+    req_exp = req_exp or 0
+    cand_exp = cand_exp or 0
+    if req_exp > 0:
+        if cand_exp >= req_exp:
+            score += 25.0
+        elif cand_exp > 0:
+            score += round(25.0 * cand_exp / req_exp, 1)
+    else:
+        score += 25.0
+
+    # 技能重叠（token 化，与节点2硬条件过滤同一套分词口径）
+    req_tokens = set(_skill_tokens(req_skills))
+    if req_tokens:
+        cand_tokens = set(_skill_tokens(cand_skills))
+        score += 45.0 * len(req_tokens & cand_tokens) / len(req_tokens)
+    else:
+        score += 45.0
+
+    # 经验加成
+    if cand_exp > 0 and score > 0:
+        score += round(min(10.0, cand_exp * 0.3), 2)
+
+    return round(min(100.0, score), 2)
+
+
+def _fallback_rule_scores(state: MatchingState) -> Dict[int, float]:
+    """向量不可用时，用规则分为全部候选生成兜底分（候选属性 vs 岗位/人才要求）"""
+    result: Dict[int, float] = {}
+    try:
+        db = next(get_mysql_session())
+
+        if state.get("match_type") == "talent_to_position":
+            talent = db.query(Talent).filter(Talent.id == state.get("talent_id")).first()
+            if not talent:
+                return result
+            talent_skills = (talent.skills_certificates or []) + (talent.tags or [])
+            for cand in state.get("filtered_candidates") or []:
+                result[cand["id"]] = _rule_match_score(
+                    talent.education,
+                    talent.experience_years,
+                    talent_skills,
+                    cand.get("education_requirement"),
+                    cand.get("experience_requirement"),
+                    cand.get("skill_requirements"),
+                )
+
+        elif state.get("match_type") == "position_to_talent":
+            position = db.query(JobPosition).filter(
+                JobPosition.id == state.get("position_id")
+            ).first()
+            if not position:
+                return result
+            for cand in state.get("filtered_candidates") or []:
+                result[cand["id"]] = _rule_match_score(
+                    cand.get("education"),
+                    cand.get("experience_years"),
+                    cand.get("skills_certificates") or [],
+                    position.education_requirement,
+                    position.experience_requirement,
+                    position.skill_requirements,
+                )
+
+    except Exception as e:
+        logger.warning(f"规则兜底评分失败: {e}")
     return result
 
 
@@ -376,42 +483,163 @@ def vector_matching(state: MatchingState) -> MatchingState:
                         vector_scores[cand["id"]] = talent_score_map.get(cand["id"], 0.0)
                     logger.info(f"向量匹配: 岗位 {pid} 命中 {len(talent_score_map)} 个人才")
 
-        # 兜底：无 embedding，或向量分数部分为 0（Milvus 集合缺数据/向量维度不一致/检索未命中部分候选人）时，
-        # 给剩余零分候选人补一个规则分（基于技能/学历匹配），避免"有候选但匹配分 0"的异常体验。
-        # 注意：即使部分命中，也要把所有零分候选人补上，否则前几人有分后面全是 0。
+        # 兜底：Milvus 集合无数据 / 向量维度不一致 / 检索未命中时，用与生产匹配接口
+        # 一致的规则分为候选补齐，保证"有候选就有可解释的分数"。
+        # 原实现用 "30 + 学历 + 经验 + id % 25" 补齐，分数与候选人能力无关，已移除。
         if state.get("filtered_candidates"):
-            for idx, cand in enumerate(state["filtered_candidates"]):
+            fallback_scores = _fallback_rule_scores(state)
+            filled = 0
+            for cand in state["filtered_candidates"]:
                 if (vector_scores.get(cand["id"]) or 0) <= 0:
-                    # 规则分：学历(20) + 经验(20) + 基础分(30)，按 id 偏移产生区分度
-                    edu_score = min(int(cand.get("experience_years") or 0) * 4, 20)
-                    exp_score = 20 if cand.get("education") in ("本科", "硕士", "博士") else 10
-                    vector_scores[cand["id"]] = round(30.0 + edu_score + exp_score + float(cand["id"] % 25), 2)
+                    vector_scores[cand["id"]] = fallback_scores.get(cand["id"], 0.0)
+                    filled += 1
+            if filled:
+                logger.info(f"向量未命中，已用规则分补齐 {filled} 个候选")
 
         state["vector_scores"] = vector_scores
-        logger.info(f"向量匹配完成: {len(vector_scores)} 个候选（已补齐零分）")
+        logger.info(f"向量匹配完成: {len(vector_scores)} 个候选")
     except Exception as e:
-        logger.error(f"向量匹配异常: {e}")
-        fallback = {c["id"]: 70.0 + float(c["id"] % 25) for c in state.get("filtered_candidates", [])}
-        state["vector_scores"] = fallback
-        state.setdefault("errors", []).append(f"向量匹配异常(已用规则兜底): {e}")
+        # 向量环节异常不应让整条匹配链路失败：退化为纯规则分继续往下走。
+        # （原实现把异常写进 state["errors"]，而下游节点见到 errors 会直接返回，
+        #   结果是 Milvus 一抖就"候选全在、结果为空"。）
+        logger.error(f"向量匹配异常，退化为规则评分: {e}")
+        state["vector_scores"] = _fallback_rule_scores(state)
     return state
 
 
+def _build_rerank_prompt(state: MatchingState, ranked: List[tuple]) -> str:
+    """构造 LLM 精排提示词：目标画像 + 候选清单，要求返回 JSON 数组
+
+    ranked 元素为 (候选id, 候选dict, 粗排分)
+    """
+    header = [
+        "你是资深招聘顾问，请结合【目标画像】评估【候选清单】中每一项的匹配度。",
+        "评分范围 0~100，必须体现真实契合度差异，不要给所有项相同或接近的高分。",
+    ]
+    body: List[str] = []
+
+    if state.get("match_type") == "talent_to_position":
+        pool = state.get("talent_skills_pool") or []
+        body.append("【目标画像】人才技能：" + ("、".join(pool)[:600] or "未知"))
+        body.append("【候选清单】岗位（评价该人才与每个岗位的匹配度）")
+        for cid, cand, coarse in ranked:
+            req_skills = "、".join(_skill_names(cand.get("skill_requirements") or []))[:200] or "不限"
+            body.append(
+                f"- id={cid}｜{cand.get('position_name') or '未知岗位'}"
+                f"｜学历要求:{cand.get('education_requirement') or '不限'}"
+                f"｜经验要求:{cand.get('experience_requirement') or '不限'}年"
+                f"｜技能要求:{req_skills}"
+                f"｜粗排分:{coarse}"
+            )
+    else:
+        position = None
+        try:
+            db = next(get_mysql_session())
+            position = db.query(JobPosition).filter(
+                JobPosition.id == state.get("position_id")
+            ).first()
+        except Exception as e:
+            logger.warning(f"精排提示词加载岗位失败: {e}")
+
+        if position:
+            req_skills = "、".join(_skill_names(position.skill_requirements or []))[:300] or "不限"
+            body.append(
+                "【目标画像】岗位："
+                f"{position.position_name}"
+                f"｜学历要求:{position.education_requirement or '不限'}"
+                f"｜经验要求:{position.experience_requirement or '不限'}年"
+                f"｜技能要求:{req_skills}"
+                f"｜岗位描述:{str(position.job_description or '')[:200]}"
+            )
+        else:
+            body.append("【目标画像】岗位要求未获取到，请按候选人之间的相对水平评分")
+
+        body.append("【候选清单】人才")
+        for cid, cand, coarse in ranked:
+            skills = "、".join(_skill_names(cand.get("skills_certificates") or []))[:200] or "未知"
+            body.append(
+                f"- id={cid}｜{cand.get('name') or '匿名'}"
+                f"｜学历:{cand.get('education') or '未知'}"
+                f"｜经验:{cand.get('experience_years') or 0}年"
+                f"｜技能:{skills}"
+                f"｜粗排分:{coarse}"
+            )
+
+    footer = [
+        "",
+        "只返回 JSON 数组，不要任何多余文字，格式：",
+        '[{"id": <候选id>, "score": <0-100的整数>, "reason": "<20字以内推荐理由>"}]',
+    ]
+    return "\n".join(header + body + footer)
+
+
 def llm_ranking(state: MatchingState) -> MatchingState:
-    """节点4：LLM 精排占位（当前用规则分，待接入 SiliconFlow LLM）"""
+    """
+    节点4：LLM 精排
+
+    在粗排（向量/规则）基础上，让 LLM 结合岗位要求与候选人画像做语义精排，
+    输出 0~100 的精排分与推荐理由。
+
+    - 仅对粗排 TOP LLM_RERANK_TOP_N 名做精排：本地 CPU 模型单次推理可达数十秒，
+      全量精排必然超时；其余候选沿用粗排分。
+    - LLM 不可用 / 返回不可解析 / 调用异常 → 一律沿用粗排分，理由标注规则口径，
+      不写 state["errors"]（否则下游节点见到 errors 会直接返回空结果）。
+    """
+    candidates = state.get("filtered_candidates") or []
+    coarse = state.get("vector_scores") or {}
+
+    # 默认结果 = 粗排分，保证任何异常路径下都有可解释的分数
+    llm_scores: Dict[int, float] = {c["id"]: coarse.get(c["id"], 0.0) for c in candidates}
+    llm_reasons: Dict[int, str] = {c["id"]: "规则评分" for c in candidates}
+
     try:
-        if state.get("errors"):
+        if state.get("errors") or not candidates:
+            state["llm_scores"] = llm_scores
+            state["llm_reasons"] = llm_reasons
             return state
-        llm_scores: Dict[int, float] = {}
-        llm_reasons: Dict[int, str] = {}
-        for cid, vscore in state["vector_scores"].items():
-            llm_scores[cid] = vscore
-            llm_reasons[cid] = "技能匹配度较高，符合岗位基本要求"
+
+        llm = _get_llm()
+        if llm is None:
+            logger.info("LLM 不可用，精排沿用粗排分")
+            state["llm_scores"] = llm_scores
+            state["llm_reasons"] = llm_reasons
+            return state
+
+        top = sorted(candidates, key=lambda c: coarse.get(c["id"], 0.0), reverse=True)[:LLM_RERANK_TOP_N]
+        prompt = _build_rerank_prompt(
+            state, [(c["id"], c, coarse.get(c["id"], 0.0)) for c in top]
+        )
+        resp = llm.invoke(prompt)
+        content = resp.content if hasattr(resp, "content") else str(resp)
+        parsed = extract_json(content, default=[]) or []
+        if not isinstance(parsed, list):
+            parsed = [parsed]
+
+        applied = 0
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            try:
+                cid = int(item.get("id"))
+                score = float(item.get("score"))
+            except (TypeError, ValueError):
+                continue
+            if cid not in llm_scores:
+                continue
+            llm_scores[cid] = round(max(0.0, min(100.0, score)), 2)
+            reason = str(item.get("reason") or "").strip()
+            if reason:
+                llm_reasons[cid] = reason[:200]
+            applied += 1
+
         state["llm_scores"] = llm_scores
         state["llm_reasons"] = llm_reasons
-        logger.info(f"LLM精排完成: {len(llm_scores)}个候选")
+        logger.info(f"LLM精排完成: 候选 {len(candidates)} 个，实际精排 {applied}/{len(top)} 个")
+
     except Exception as e:
-        state["errors"].append(f"LLM精排失败: {e}")
+        logger.warning(f"LLM精排失败（沿用粗排分）: {e}")
+        state["llm_scores"] = llm_scores
+        state["llm_reasons"] = llm_reasons
     return state
 
 

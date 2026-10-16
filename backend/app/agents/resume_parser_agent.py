@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, END
 
 from app.agents.graph_runtime import compile_graph, invoke_graph
 from app.core.config import settings
-from app.core.llm_factory import get_silicon_flow_llm
+from app.core.llm_factory import get_agent_llm
 from app.core.run_async import run_async
 from app.utils.resume_parser import ResumeParser
 from app.utils.json_utils import extract_json
@@ -37,9 +37,9 @@ class AgentState(TypedDict):
 # ==================== LLM 初始化 ====================
 
 def _build_llm():
-    """构建 SiliconFlow LLM，失败返回 None"""
+    """构建 LLM：优先 SiliconFlow，未配密钥时自动回退本地 Ollama；全部不可用返回 None"""
     try:
-        return get_silicon_flow_llm(temperature=0.1)
+        return get_agent_llm(temperature=0.1)
     except Exception as e:
         logger.warning(f"简历解析Agent LLM初始化失败: {e}，使用规则降级")
         return None

@@ -34,13 +34,24 @@ def _build_ollama_llm(
     temperature: float = 0.1,
     **kwargs
 ) -> ChatOllama:
-    """构建 Ollama LLM"""
-    return ChatOllama(
+    """构建 Ollama LLM
+
+    本地 CPU 推理时 qwen3:1.7b 冷启动可达 ~100s，默认超时会让 Agent 恒定失败，
+    因此显式注入 client_kwargs.timeout（由 OLLAMA_CHAT_TIMEOUT 控制）。
+    """
+    params = dict(
         base_url=base_url or settings.OLLAMA_BASE_URL,
         model=model or settings.LLM_MODEL,
         temperature=temperature,
-        **kwargs
     )
+    params.update(kwargs)
+    params.setdefault("client_kwargs", {"timeout": settings.OLLAMA_CHAT_TIMEOUT})
+    try:
+        return ChatOllama(**params)
+    except TypeError:
+        # 旧版 langchain-ollama 不认 client_kwargs，退回默认参数
+        params.pop("client_kwargs", None)
+        return ChatOllama(**params)
 
 
 def _build_silicon_flow_llm(
@@ -81,6 +92,11 @@ def _build_silicon_flow_llm(
 #     )
 
 
+def silicon_flow_available() -> bool:
+    """SiliconFlow 是否可用（已配置密钥）"""
+    return bool(settings.SILICON_FLOW_API_KEY)
+
+
 def get_llm_by_strategy(
     strategy: Optional[str] = None,
     model: Optional[str] = None,
@@ -96,10 +112,20 @@ def get_llm_by_strategy(
         model: 覆盖默认模型
         temperature: 温度参数
         **kwargs: 透传给 LLM 构造器
+
+    注意：请求 silicon_flow 但未配置密钥时，**自动回退本地 Ollama**（不再抛异常），
+          避免上层 Agent 因缺密钥整体降级为规则模式。回退前的策略仍可通过
+          `silicon_flow_available()` 单独判断。
     """
     strategy = strategy or settings.LLM_STRATEGY or "ollama"
 
     if strategy == "silicon_flow":
+        if not silicon_flow_available():
+            logger.warning(
+                "[LLM] 请求 silicon_flow 策略但 SILICON_FLOW_API_KEY 未配置，"
+                "自动回退本地 Ollama（model=%s）", settings.LLM_MODEL
+            )
+            return _build_ollama_llm(model=None, temperature=temperature, **kwargs)
         llm = _build_silicon_flow_llm(model=model, temperature=temperature, **kwargs)
         logger.info(f"[LLM] SiliconFlow initialized: {model or settings.SILICON_FLOW_MODEL}")
         return llm
@@ -114,6 +140,18 @@ def get_llm_by_strategy(
     llm = _build_ollama_llm(model=model, temperature=temperature, **kwargs)
     logger.info(f"[LLM] Ollama initialized: {model or settings.LLM_MODEL}")
     return llm
+
+
+def get_agent_llm(temperature: float = 0.1, model: Optional[str] = None, **kwargs):
+    """
+    Agent 场景统一入口：优先 SiliconFlow（高精度），不可用时自动回退本地 Ollama。
+    永不抛异常——全部不可用时返回 None，调用方按既定策略走规则降级。
+    """
+    try:
+        return get_llm_by_strategy("silicon_flow", model=model, temperature=temperature, **kwargs)
+    except Exception as e:
+        logger.warning(f"[LLM] Agent LLM 构建失败（{e}），Agent 将使用规则降级")
+        return None
 
 
 def get_llm(
