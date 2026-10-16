@@ -1,6 +1,30 @@
-# 换行符约定
+# 换行符约定（可复现部署的关键）
 #
-# Shell 脚本必须使用 LF：若被检出为 CRLF，在 Linux 服务器上执行会报
-# "bad interpreter: /usr/bin/env bash^M"。部署脚本经 Git 检出 / 打包上传后
-# 都要能直接运行，故在此强制。
+# 背景：本仓库的 blob 一律以 LF 存储。但开发机 core.autocrlf=true 时，
+#       `git checkout` 会把文本文件检出成CRLF —— 于是「工作区内容」与「仓库内容」
+#       字节不同，若部署包直接从工作区打包，服务器拿到的就是 CRLF 版本。
+#       实测后果：同样 8 份知识文档，云端切片 62 / 本机另一环境 72，两边对不上，
+#       且「重新部署一次得到的结果」不稳定。
+#
+# 因此这里对所有文本文件强制 eol=lf：
+#   * 检出到工作区是 LF（打包上传的内容 == 仓库内容）
+#   * 提交进仓库也先归一为 LF（不同机器提交不会互相污染）
+#   * *.sh 额外强调一遍：CRLF 的脚本在 Linux 上会报 "bad interpreter: bash^M"
+* text=auto eol=lf
+
 *.sh text eol=lf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.pptx binary
