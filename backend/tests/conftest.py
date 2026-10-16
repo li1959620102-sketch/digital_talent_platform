@@ -14,18 +14,67 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 # 设置测试环境变量（必须在导入app前设置）
 os.environ['TESTING'] = 'true'
 
+# ── Milvus 测试隔离（重要）─────────────────────────────────────────────────
+# 本文件用 SQLite 内存库，测试里的自增 id 从 1 开始；而 Milvus 没有数据库级的
+# 事务回滚，测试写入会**真实落到运行中的集合里**。两个 id 空间一旦冲突，就会
+# 出现「测试上传的文件拿到 file_id=2 → vectorize 先删掉生产 file_id=2 的向量
+# 再写入测试向量」，结果是知识库向量被静默覆盖（实测 knowledge_base 72→67）。
+# 因此这里把三个集合全部指向 *_test 专用集合，会话结束时由 fixture 删除。
+os.environ.setdefault('MILVUS_COLLECTION_TALENT', 'talent_resume_test')
+os.environ.setdefault('MILVUS_COLLECTION_JOB', 'job_position_test')
+os.environ.setdefault('MILVUS_COLLECTION_KNOWLEDGE', 'knowledge_base_test')
+
 # 导入所有模型以确保表结构注册
-from app.core.database import Base
-from app.models import talent, position, assessment, training, permission  # noqa: F401
-from app.models.talent import Talent
-from app.models.position import JobPosition, PositionStatus
-from app.models.assessment import (
+from app.core.database import Base  # noqa: E402
+from app.models import talent, position, assessment, training, permission  # noqa: F401,E402
+from app.models.talent import Talent  # noqa: F401,E402
+from app.models.position import JobPosition, PositionStatus  # noqa: F401,E402
+from app.models.assessment import (  # noqa: F401,E402
     Question, TestPaper, AssessmentTask, AssessmentResult,
     QuestionType,
     AssessmentStatus,
     CapabilityLevel
 )
-from app.models.permission import User, Role, Permission
+from app.models.permission import User, Role, Permission  # noqa: F401,E402
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_milvus_collections():
+    """创建测试专用 Milvus 集合，会话结束后删除。
+
+    为什么需要：SQLite 内存库的事务回滚管不到 Milvus。测试若直接写生产集合，
+    会用测试库的 id 覆盖生产向量，且不会有任何报错——RAG 只是悄悄少召回内容。
+    这里让测试跑在 *_test 集合上，跑完删掉，做到「零残留 + 零污染」。
+    """
+    names = []
+    try:
+        from app.core import milvus_client as mc
+        from app.core.config import settings
+        from app.core.run_async import run_async
+
+        plan = (
+            (mc.create_talent_resume_collection, settings.MILVUS_COLLECTION_TALENT),
+            (mc.create_job_position_collection, settings.MILVUS_COLLECTION_JOB),
+            (mc.create_knowledge_base_collection, settings.MILVUS_COLLECTION_KNOWLEDGE),
+        )
+        for create_fn, name in plan:
+            try:
+                run_async(create_fn())
+                names.append(name)
+            except Exception as exc:  # noqa: BLE001
+                # Milvus 不可用时不让整个测试会话失败：相关用例本身会优雅降级
+                print(f"[conftest] 测试集合 {name} 创建跳过：{exc}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[conftest] Milvus 隔离未启用：{exc}")
+
+    yield
+
+    for name in names:
+        try:
+            run_async(mc.utility.drop_collection(name))
+            print(f"[conftest] 已清理测试集合 {name}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[conftest] 测试集合 {name} 清理失败（不影响结果）：{exc}")
 
 
 @pytest.fixture(scope="session")
