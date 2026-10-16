@@ -13,7 +13,47 @@
 # 注意：两个文件都放在项目根目录，且 -f 顺序必须是「先 docker-compose.yml、后本文件」。
 #       这样 project 目录 = 项目根目录，./backend 等相对路径才能正确解析。
 # =====================================================================
+# ── 日志轮转（全服务生效）─────────────────────────────────────────────────
+# Docker 默认的 json-file 驱动不限制单文件大小，日志只增不减。生产机器磁盘有限
+# （本次实测 40G，已用 87%），长期运行会把盘写满并导致数据库/服务异常退出。
+# 下面这段把每个容器的日志限制在「单文件 20MB × 最多 3 个文件 = 60MB」，
+# 9 个服务最坏情况合计约 540MB，超出自动轮转删除最旧的。
+#
+# 注意：日志驱动是「容器创建时」属性，改完需 `docker compose ... up -d`
+#       重建容器才生效（业务数据在命名卷里，不会丢失）。
+x-log-rotation: &log-rotation
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
+  mysql:
+    logging: *log-rotation
+
+  postgres:
+    logging: *log-rotation
+
+  redis:
+    logging: *log-rotation
+
+  etcd:
+    logging: *log-rotation
+
+  minio:
+    logging: *log-rotation
+
+  milvus:
+    logging: *log-rotation
+
+  ollama:
+    # Ollama 打日志最频繁（模型加载/每次推理都有输出），单独收紧到 10MB × 2。
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
   backend:
     build:
       context: ./backend
@@ -23,6 +63,7 @@ services:
         # 国内服务器建议在 .env 里写：
         #   PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    logging: *log-rotation
 
   nginx:
     build:
@@ -44,3 +85,4 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./docker/nginx/conf.d:/etc/nginx/conf.d
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    logging: *log-rotation
