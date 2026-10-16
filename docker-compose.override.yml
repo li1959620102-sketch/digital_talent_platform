@@ -52,13 +52,14 @@ services:
       - "8080:80"
 
   # ---- 本地 http 运行：开启 DEBUG 跳过生产侧安全强校验 ----
-  # 国内无法直连 pypi.org，构建时改用清华镜像安装依赖
+  # 国内无法直连 pypi.org。2026-10-16 实测：构建容器内 pypi.org 与清华镜像均不可达
+  # （清华表现为读超时），阿里云与腾讯云镜像可用 → 此处改用阿里云，保证 `docker compose build` 可重现。
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple/
     environment:
       - DEBUG=true
     # 知识库源文件挂载（2026-10-15）：基础 compose 用命名卷 backend_media:/app/media，
