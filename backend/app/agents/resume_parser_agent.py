@@ -68,7 +68,15 @@ def parse_file(state: AgentState) -> AgentState:
 
 
 def extract_info(state: AgentState) -> AgentState:
-    """节点2：LLM 结构化信息提取（姓名/学历/公司/职位等）"""
+    """节点2：**一次** LLM 调用同时产出「结构化字段 + 人才标签 + 能力画像」
+
+    为什么合并（2026-10-16 实测）：原实现由 extract_info / generate_tags /
+    generate_portrait 三个节点各发一次 LLM 请求，本地 CPU 上三次串行推理耗时
+    超过 300s，正好撞上 Nginx `proxy_read_timeout 300s` —— 前端拿到 504，
+    请求被取消、档案也没落库，表现为「简历解析不可用」。
+    合并为单次调用后耗时降到约 1/3，后续两个节点改为在本节点结果上做规整与
+    规则兜底，既保留 5 节点工作流结构，又让端到端稳定落在超时之内。
+    """
     try:
         if not state.get("raw_text"):
             state["errors"].append("无原始文本可提取")
@@ -79,18 +87,37 @@ def extract_info(state: AgentState) -> AgentState:
             return state
 
         prompt = (
-            "你是一个专业的简历解析助手。请从以下简历文本中提取结构化信息。\n\n"
+            "你是专业的简历解析助手。请从下面的简历文本中一次性完成三项任务。\n\n"
             f"简历文本:\n{state['raw_text'][:4000]}\n\n"
-            "请以JSON格式返回（无法提取的字段填null）:\n"
-            '{"name":"姓名","gender":"male/female","phone":"手机号",'
-            '"education":"学历","major":"专业","experience_years":工作年限数字,'
+            "请严格以 JSON 对象返回，不要输出任何多余文字，格式：\n"
+            "{\n"
+            '  "talent": {"name":"姓名","gender":"男或女","phone":"手机号","email":"邮箱",'
+            '"education":"高中/大专/本科/硕士/博士","major":"专业","experience_years":工作年限数字,'
             '"current_company":"当前公司","current_position":"当前职位",'
-            '"skills":"技能列表","self_introduction":"自我介绍"}'
+            '"skills":["3-15个专业技能名词，单个不超过20字，如 Python、MySQL、分布式系统"],'
+            '"self_introduction":"一段话自我介绍"},\n'
+            '  "tags": ["5-10个人才标签，技能/行业/能力/经验方向"],\n'
+            '  "portrait": {"technical_ability":0-100,"management_ability":0-100,'
+            '"communication_ability":0-100,"innovation_ability":0-100,'
+            '"teamwork_ability":0-100,"learning_ability":0-100,"summary":"综合评价一段话"}\n'
+            "}\n"
+            "无法确定的字段填 null。"
         )
         resp = _llm.invoke(prompt)
         content = resp.content if hasattr(resp, "content") else str(resp)
-        extracted = extract_json(content) or {}
-        state["extracted_data"].update({k: v for k, v in extracted.items() if v is not None})
+        parsed = extract_json(content) or {}
+
+        talent = parsed.get("talent")
+        if isinstance(talent, dict):
+            state["extracted_data"].update({k: v for k, v in talent.items() if v is not None})
+
+        tags = parsed.get("tags")
+        if isinstance(tags, list):
+            state["tags"] = [str(t).strip() for t in tags if str(t).strip()]
+
+        portrait = parsed.get("portrait")
+        if isinstance(portrait, dict):
+            state["portrait"] = portrait
     except Exception as e:
         state["errors"].append(f"信息提取失败: {e}")
     return state
@@ -129,23 +156,51 @@ def validate_data(state: AgentState) -> AgentState:
     return state
 
 
-def generate_tags(state: AgentState) -> AgentState:
-    """节点4：LLM 生成人才标签（技能/行业/能力/经验标签）"""
-    try:
-        if not _llm:
-            state["tags"] = []
-            return state
+# 标签上限与画像六维
+_TAG_LIMIT = 10
+_PORTRAIT_KEYS = (
+    "technical_ability",
+    "management_ability",
+    "communication_ability",
+    "innovation_ability",
+    "teamwork_ability",
+    "learning_ability",
+)
+_EDU_INDEX = {"高中": 0, "中专": 0, "大专": 1, "本科": 2, "硕士": 3, "博士": 4}
 
-        raw = state.get("raw_text", "")[:3000]
-        prompt = (
-            "根据以下简历文本，生成5-10个人才标签（技能/行业/能力/经验方向）。\n"
-            f"简历:\n{raw}\n\n"
-            "请以JSON数组格式返回标签列表，如：[\"Python\", \"团队管理\", \"金融行业\"]"
-        )
-        resp = _llm.invoke(prompt)
-        content = resp.content if hasattr(resp, "content") else str(resp)
-        tags = extract_json(content) or []
-        state["tags"] = tags if isinstance(tags, list) else []
+
+def generate_tags(state: AgentState) -> AgentState:
+    """节点4：标签规整 + 规则兜底
+
+    LLM 已在节点2一并产出标签，本节点负责清洗、去重、限量；
+    若 LLM 未产出（不可用或未返回），则按学历/经验/技能做规则推导，
+    保证这条链路在任何情况下都有结果（不再发第二次 LLM 请求）。
+    """
+    try:
+        raw_tags = [str(t).strip() for t in (state.get("tags") or []) if str(t).strip()]
+
+        seen, cleaned = set(), []
+        for t in raw_tags:
+            key = t.lower()
+            if key not in seen:
+                seen.add(key)
+                cleaned.append(t)
+
+        if not cleaned:
+            data = state.get("extracted_data") or {}
+            edu = data.get("education")
+            years = data.get("experience_years") or 0
+            if edu:
+                cleaned.append(str(edu))
+            if years:
+                cleaned.append(f"{years}年经验")
+            skills = data.get("skills")
+            if isinstance(skills, list):
+                cleaned.extend(str(s) for s in skills if s)
+            elif isinstance(skills, str) and skills.strip():
+                cleaned.extend(s.strip() for s in skills.replace("、", ",").split(",") if s.strip())
+
+        state["tags"] = cleaned[:_TAG_LIMIT]
     except Exception as e:
         state["errors"].append(f"标签生成失败: {e}")
         state["tags"] = []
@@ -153,27 +208,49 @@ def generate_tags(state: AgentState) -> AgentState:
 
 
 def generate_portrait(state: AgentState) -> AgentState:
-    """节点5：LLM 生成人才画像（技术/管理/沟通/创新/协作/学习能力评分）"""
-    try:
-        if not _llm:
-            state["portrait"] = {}
-            return state
+    """节点5：画像规整 + 规则兜底
 
-        raw = state.get("raw_text", "")[:3000]
-        tags_str = ", ".join(state.get("tags", [])) or "无"
-        prompt = (
-            "根据以下简历和标签，生成人才能力画像评分（每项0-100分）。\n"
-            f"简历:\n{raw}\n标签: {tags_str}\n\n"
-            "请以JSON格式返回:\n"
-            '{"technical_ability":分数,"management_ability":分数,'
-            '"communication_ability":分数,"innovation_ability":分数,'
-            '"teamwork_ability":分数,"learning_ability":分数,'
-            '"summary":"综合评价一段话"}'
-        )
-        resp = _llm.invoke(prompt)
-        content = resp.content if hasattr(resp, "content") else str(resp)
-        portrait = extract_json(content) or {}
-        state["portrait"] = portrait
+    LLM 已在节点2一并产出六维评分，本节点做取值范围修正与缺失补齐；
+    若 LLM 未产出，则按学历/经验/技能数量推导一份规则画像（不再发第三次 LLM 请求）。
+    """
+    try:
+        raw_portrait = dict(state.get("portrait") or {})
+        cleaned: Dict[str, Any] = {}
+        for key in _PORTRAIT_KEYS:
+            try:
+                cleaned[key] = int(max(0, min(100, round(float(raw_portrait.get(key))))))
+            except (TypeError, ValueError):
+                cleaned[key] = None
+
+        if all(v is None for v in cleaned.values()):
+            data = state.get("extracted_data") or {}
+            years = data.get("experience_years") or 0
+            edu_idx = _EDU_INDEX.get(str(data.get("education")), 2)
+            skills = data.get("skills")
+            if isinstance(skills, list):
+                skill_cnt = len(skills)
+            elif isinstance(skills, str):
+                skill_cnt = len([s for s in skills.replace("、", ",").split(",") if s.strip()])
+            else:
+                skill_cnt = 0
+
+            base = 55 + edu_idx * 5 + min(years, 10)
+            cleaned = {
+                "technical_ability": min(100, base + skill_cnt * 3),
+                "management_ability": min(100, base - 5 + (5 if years >= 5 else 0)),
+                "communication_ability": min(100, base),
+                "innovation_ability": min(100, base - 3),
+                "teamwork_ability": min(100, base + 2),
+                "learning_ability": min(100, base + 4),
+            }
+            cleaned = {k: int(v) for k, v in cleaned.items()}
+            summary = "基于学历/经验/技能推导的规则画像（LLM 未参与）"
+        else:
+            cleaned = {k: (v if v is not None else 60) for k, v in cleaned.items()}
+            summary = str(raw_portrait.get("summary") or "").strip() or "综合简历信息生成"
+
+        cleaned["summary"] = summary
+        state["portrait"] = cleaned
     except Exception as e:
         state["errors"].append(f"画像生成失败: {e}")
         state["portrait"] = {}

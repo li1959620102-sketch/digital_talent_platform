@@ -3,12 +3,64 @@
 支持PDF、Word、图片等格式
 """
 import os
+import re
 import tempfile
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== 规则技能词典 ====================
+# 用途：LLM 不可用（未配密钥 / 模型未就绪）时的降级路径也要能抽出技能。
+# 否则 skills_certificates 为空，岗位匹配的硬条件过滤会把候选人整体筛掉，
+# 表现为"简历解析成功但一个人也匹配不上"。
+_SKILL_ASCII = (
+    "Python", "Java", "JavaScript", "TypeScript", "Golang", "Go", "C++", "C#",
+    "PHP", "Ruby", "Rust", "Scala", "Kotlin", "Shell", "SQL",
+    "FastAPI", "Django", "Flask", "Spring Boot", "Spring Cloud", "Spring",
+    "MyBatis", "Node.js", "Express", "gRPC", "RESTful", "Celery",
+    "MySQL", "PostgreSQL", "Redis", "MongoDB", "Elasticsearch", "ClickHouse",
+    "Hive", "Oracle", "SQL Server", "SQLite", "Milvus", "MinIO", "HBase",
+    "Kafka", "RabbitMQ", "RocketMQ", "Spark", "Flink", "Hadoop", "Airflow",
+    "Docker", "Kubernetes", "K8s", "Jenkins", "GitLab CI", "Nginx", "Linux",
+    "Prometheus", "Grafana", "Ansible", "Terraform", "CI/CD", "DevOps",
+    "PyTorch", "TensorFlow", "Keras", "scikit-learn", "Pandas", "NumPy",
+    "LLM", "RAG", "LangChain", "Transformer", "BERT", "OCR",
+    "React", "Vue", "Angular", "Webpack", "Vite", "HTML", "CSS", "Sass",
+    "Ant Design", "Element UI",
+)
+_SKILL_CN = (
+    "机器学习", "深度学习", "自然语言处理", "计算机视觉", "数据挖掘", "推荐系统",
+    "向量数据库", "知识图谱", "大模型", "数据分析", "数据可视化", "项目管理",
+    "需求分析", "产品设计", "敏捷开发", "团队管理", "市场营销", "财务分析",
+    "人力资源管理", "招聘管理", "绩效考核", "薪酬管理", "小程序开发",
+)
+
+# 长词优先，避免 "Java" 抢先命中 "JavaScript"、"Spring" 抢先命中 "Spring Boot"
+_ASCII_SKILL_RE = re.compile(
+    r"(?<![A-Za-z0-9+#.])("
+    + "|".join(re.escape(s) for s in sorted(_SKILL_ASCII, key=len, reverse=True))
+    + r")(?![A-Za-z0-9+#])",
+    re.IGNORECASE,
+)
+_SKILL_CANON = {s.lower(): s for s in _SKILL_ASCII}
+
+
+def extract_skills_by_rule(text: str, limit: int = 20) -> List[str]:
+    """按技能词典从文本中抽取技能（大小写不敏感，按首次出现位置排序）"""
+    if not text:
+        return []
+    hits: Dict[int, str] = {}
+    for m in _ASCII_SKILL_RE.finditer(text):
+        canon = _SKILL_CANON.get(m.group(1).lower(), m.group(1))
+        hits.setdefault(m.start(), canon)
+    for kw in _SKILL_CN:
+        idx = text.find(kw)
+        if idx >= 0:
+            hits.setdefault(idx, kw)
+    return [hits[i] for i in sorted(hits)][:limit]
 
 
 class ResumeParser:
@@ -162,6 +214,7 @@ class ResumeParser:
             "experience_years": None,
             "current_company": None,
             "current_position": None,
+            "skills": [],
             "self_introduction": None
         }
 
@@ -231,6 +284,9 @@ class ResumeParser:
         intro_match = re.search(r'(?:自我评价|个人简介|自我介绍)[：:\s]*([^\n]{0,200})', text)
         if intro_match and intro_match.group(1).strip():
             talent_data["self_introduction"] = intro_match.group(1).strip()
+
+        # 技能：词典命中（LLM 降级路径的兜底，保证建档即有技能可用于匹配）
+        talent_data["skills"] = extract_skills_by_rule(text)
 
         return talent_data
 
