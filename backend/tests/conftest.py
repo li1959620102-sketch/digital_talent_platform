@@ -48,9 +48,27 @@ def isolated_milvus_collections():
     """
     names = []
     try:
+        from pymilvus import connections as milvus_connections
+
         from app.core import milvus_client as mc
         from app.core.config import settings
         from app.core.run_async import run_async
+
+        # create_*_collection() 内部走 pymilvus.utility，必须先建立连接，
+        # 否则报 ConnectionNotExistException，集合建不出来 —— 测试会退化成
+        # 「写不进任何集合」而看起来全绿，向量相关用例实际被静默跳过。
+        try:
+            if not milvus_connections.has_connection(settings.MILVUS_ALIAS):
+                milvus_connections.connect(
+                    alias=settings.MILVUS_ALIAS,
+                    host=settings.MILVUS_HOST,
+                    port=settings.MILVUS_PORT,
+                    db_name=settings.MILVUS_DB,
+                    user=settings.MILVUS_USER or "",
+                    password=settings.MILVUS_PASSWORD or "",
+                )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[conftest] Milvus 连接建立失败，向量用例将优雅降级：{exc}")
 
         plan = (
             (mc.create_talent_resume_collection, settings.MILVUS_COLLECTION_TALENT),
@@ -61,6 +79,7 @@ def isolated_milvus_collections():
             try:
                 run_async(create_fn())
                 names.append(name)
+                print(f"[conftest] 测试集合已就绪：{name}")
             except Exception as exc:  # noqa: BLE001
                 # Milvus 不可用时不让整个测试会话失败：相关用例本身会优雅降级
                 print(f"[conftest] 测试集合 {name} 创建跳过：{exc}")
@@ -71,10 +90,49 @@ def isolated_milvus_collections():
 
     for name in names:
         try:
-            run_async(mc.utility.drop_collection(name))
+            # 注意：pymilvus 的 utility.drop_collection 是**同步**函数，
+            # 用 run_async 包会报 "a coroutine was expected, got None"
+            mc.utility.drop_collection(name)
             print(f"[conftest] 已清理测试集合 {name}")
         except Exception as exc:  # noqa: BLE001
             print(f"[conftest] 测试集合 {name} 清理失败（不影响结果）：{exc}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_minio_buckets():
+    """会话结束后清空测试专用的 MinIO 桶（*_test），避免留下孤儿上传文件。
+
+    与 Milvus 隔离同一类问题：对象存储没有事务回滚，测试上传的文件会真实落盘，
+    而对应 MySQL 记录随内存库一起消失，于是变成零引用的孤儿对象。
+    """
+    try:
+        from app.utils.minio_client import (
+            BUCKET_IMPORTS, BUCKET_KNOWLEDGE, BUCKET_RESUMES, MinioClient,
+        )
+
+        buckets = [BUCKET_RESUMES, BUCKET_KNOWLEDGE, BUCKET_IMPORTS]
+        # 若后缀没生效（环境变量没读到），说明不是测试环境，不要动真实桶
+        if not all(b.endswith("-test") for b in buckets):
+            print("[conftest] MinIO 桶隔离未启用（桶名无 -test 后缀），跳过清理")
+            yield
+            return
+
+        yield
+
+        for bucket in buckets:
+            try:
+                mc = MinioClient(bucket)
+                client = mc.client
+                if client.bucket_exists(bucket):
+                    for obj in client.list_objects(bucket, recursive=True):
+                        client.remove_object(bucket, obj.object_name)
+                    client.remove_bucket(bucket)
+                print(f"[conftest] 已清理测试桶 {bucket}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[conftest] 测试桶 {bucket} 清理失败（不影响结果）：{exc}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[conftest] MinIO 桶隔离未启用：{exc}")
+        yield
 
 
 @pytest.fixture(scope="session")

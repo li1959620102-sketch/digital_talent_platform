@@ -240,6 +240,17 @@ class MinioClient:
 
 
 # 桶名常量（与.env配置一致）
-BUCKET_RESUMES = "resumes"           # 简历文件
-BUCKET_KNOWLEDGE = "knowledge-docs"  # 知识文档
-BUCKET_IMPORTS = "imports"           # 数据导入文件
+#
+# 测试隔离：这些桶名此前是硬编码的，导致 pytest 里用 SQLite 内存库、
+# 自增 id 从 1 开始的用例，仍把上传文件写进**运行中的真实桶**，
+# 每次跑测试都会在生产 MinIO 里留下一批无人引用的孤儿对象
+# （实测 resumes / imports / knowledge-docs 三个桶各积压若干）。
+# 与 Milvus 集合名同理，测试统一加 -test 后缀，会话结束时由 conftest 删除。
+# 注意：S3/MinIO 的桶名规则不允许下划线（会报 InvalidBucketName），
+# 所以这里必须用连字符而不是 _test。
+_TESTING = os.getenv("TESTING", "").lower() in ("true", "1", "yes")
+_SUFFIX = "-test" if _TESTING else ""
+
+BUCKET_RESUMES = "resumes" + _SUFFIX            # 简历文件
+BUCKET_KNOWLEDGE = "knowledge-docs" + _SUFFIX   # 知识文档
+BUCKET_IMPORTS = "imports" + _SUFFIX            # 数据导入文件
