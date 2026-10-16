@@ -1,0 +1,72 @@
+# =====================================================================
+# 本地全栈跑通覆盖文件（2026-10-15 新增）
+#
+# 用途：不改动 docker-compose.yml 的前提下，解决三件事：
+#   1) 宿主机端口冲突——3306/5432/6379/11434/80 等已被本机服务及其他
+#      项目容器占用，这里把对外端口改到空闲端口；
+#   2) 本地以 http 提供服务，后端需 DEBUG=true（否则生产侧安全校验会因
+#      CORS 含 localhost、AUTH_COOKIE_SECURE=false 而拒绝启动）；
+#   3) quay.io 不可达（etcd 镜像），改为复用本机已有的等价镜像标签。
+#
+# 用法：docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+# 撤销：删除本文件，或把上面的命令去掉 -f docker-compose.override.yml
+# =====================================================================
+services:
+  # ---- 复用本机已有镜像（原 compose 要求的标签本地不存在且源不可达）----
+  postgres:
+    image: postgres:15-alpine
+    ports: !override
+      - "127.0.0.1:15432:5432"
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    ports: !override
+      - "127.0.0.1:19100:9000"
+      - "127.0.0.1:19101:9001"
+
+  milvus:
+    image: milvusdb/milvus:v2.6.0
+    ports: !override
+      - "127.0.0.1:19531:19530"
+      - "127.0.0.1:19091:9091"
+
+  ollama:
+    image: ollama/ollama:0.34.0
+    ports: !override
+      - "127.0.0.1:11435:11434"
+
+  # ---- 端口改到空闲端口 ----
+  mysql:
+    ports: !override
+      - "127.0.0.1:13306:3306"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:16379:6379"
+
+  nginx:
+    ports: !override
+      - "8080:80"
+
+  # ---- 本地 http 运行：开启 DEBUG 跳过生产侧安全强校验 ----
+  # 国内无法直连 pypi.org，构建时改用清华镜像安装依赖
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+    environment:
+      - DEBUG=true
+    # 知识库源文件挂载（2026-10-15）：基础 compose 用命名卷 backend_media:/app/media，
+    # 命名卷首次创建为空 → knowledge_files.file_path 指向的文件在容器内不存在，
+    # 向量化必然失败、Milvus knowledge_base 恒为空（实测：73 分块 0 向量）。
+    # 这里把宿主 backend/media 绑进来，使源文档对容器可见、可重复灌库。
+    # 只挂 media（不挂整个 ./backend）：backend/.env 含 LLM_STRATEGY=silicon_flow、
+    # DIFY_ENABLED=true 等本地值，整体挂载会让这些值随 .env 生效而改变运行时行为。
+    volumes: !override
+      - ./backend/media:/app/media
+      - backend_logs:/app/logs

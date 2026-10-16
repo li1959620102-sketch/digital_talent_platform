@@ -1,0 +1,57 @@
+# =====================================================================
+# 构建上下文排除清单（Dockerfile 中 `COPY . .` 会尊重本文件）
+# 目的：① 避免密钥随镜像层外泄  ② 减小镜像体积  ③ 避免宿主缓存污染
+# 创建日期：2026-10-13
+# =====================================================================
+
+# ── 密钥与本地环境（关键：防止 .env 被打进镜像）──
+.env
+.env.*
+!.env.example
+
+# ── Python 运行期产物 ──
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ── 运行期目录（日志/上传/媒体，由 volume 挂载，不应进镜像）──
+logs/
+media/
+uploads/
+.uploads_backup/
+
+# ── 向量库本地缓存（体积大，运行时重建/由 Milvus 承载）──
+vanna_chroma/
+chromadb/
+milvus_data/
+redis_data/
+mysql_data/
+pg_data/
+
+# ── 一次性脚本归档与迁移报告产物 ──
+_archive/
+migrations/
+
+# ── 版本控制与 IDE ──
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+
+# ── 容器与编排文件（无需入镜像）──
+Dockerfile
+docker-compose*.yml
+
+# ── 系统杂项 ──
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.rar

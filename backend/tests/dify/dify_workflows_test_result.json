@@ -1,0 +1,98 @@
+{
+  "api_base": "http://127.0.0.1:80/v1",
+  "app_keys_configured": {
+    "resume": true,
+    "assessment": true,
+    "matching": true,
+    "training": true,
+    "data_decision": true
+  },
+  "summary": {
+    "passed": 5,
+    "total": 5
+  },
+  "results": [
+    {
+      "agent": "resume",
+      "name": "档案解析智能体",
+      "status": "pass",
+      "run_status": "succeeded",
+      "elapsed_s": 50.69,
+      "inputs": {
+        "resume_text": "\n张明，男，35岁，本科毕业，计算机科学与技术专业。\n联系方式：13800138000，邮箱：zhangming@example.com\n现任公司：字节跳动科技有限公司，职位：高级前端工程师，工作年限：10年。\n技能：React, TypeScript, Vue, Node.js, Webpack, 性能优化, 团队管理。\n项目经验：主导字节内部 ERP 系统前端重构，团队 8 人，性能提升 40%。\n",
+        "file_name": "zhangming_resume.txt"
+      },
+      "outputs_keys": [
+        "resume_report"
+      ],
+      "report_preview": "<think>\n用户希望基于提供的后端解析结果（JSON格式），生成一份结构化的人才画像报告。\n报告需要满足以下要求：\n1. 使用Markdown格式。\n2. 包含特定字段：姓名、学历、公司、职位、技能、经验、标签。\n3. 突出关键能力。\n4. 给出岗位匹配方向建议。\n\n解析提供的JSON数据：\n- 姓名：张明\n- 电话：13800138000\n- 邮箱：zhangming@example.com\n- 学历：本科\n- 专业：计算机科学与技术\n- 经验年限：10年\n- 当前公司：字节跳动科技有限公司\n- 当前职位：高级前端工程师\n- 性别：男\n- 技能：React, TypeScript, Vue, Node.js, Webpack, 性能优化, 团队管理\n- 标签：React, TypeScript, Vue, Node.js, Webpack, 性能优化, 团队管理, 前端架构, 互联网行业, 10年经验\n- 画像评分：技术能力92，管理能力78，沟通能力82，创新能力85，团队协作86，学习能力88\n- 总结：张明拥有10年互联网前端开发经验，技术功底深厚，精通React、Vue、",
+      "error": "",
+      "raw_data_id": "7f3d3811-5fff-4c86-8651-58ec01794552"
+    },
+    {
+      "agent": "assessment",
+      "name": "测评分析智能体",
+      "status": "pass",
+      "run_status": "succeeded",
+      "elapsed_s": 40.31,
+      "inputs": {
+        "talent_id": "1",
+        "assessment_result_id": "1"
+      },
+      "outputs_keys": [
+        "assessment_report"
+      ],
+      "report_preview": "<think>\n用户希望我作为人才测评分析师，基于提供的后端测评结果生成一份结构化的测评报告。\n要求：\n1. Markdown格式\n2. 包含：能力维度得分、优势、短板、培训建议\n3. 数据用表格呈现\n\n提供的后端测评结果：\n```json\n{\"code\":200,\"message\":\"分析完成\",\"data\":{\"success\":false,\"errors\":[\"测评结果不存在: 1\"]}}\n```\n\n分析后端结果：\n- `code`: 200 (请求成功)\n- `message`: \"分析完成\"\n- `data.success`: false (业务逻辑失败)\n- `data.errors`: [\"测评结果不存在: 1\"] (具体错误信息：找不到ID为1的测评结果)\n\n由于后端返回的数据表明“测评结果不存在”，我并没有实际的测评数据（如能力维度得分等）来生成真实的测评报告。\n因此，作为专业的人才测评分析师，我需要：\n1. 指出当前无法生成报告的原因（数据缺失/测评结果不存在）。\n2. 提供一个**模板**或**示例报告**，展示如果数据存在时报告的结构和样式，以满足用户对格式（M",
+      "error": "",
+      "raw_data_id": "03d80eae-0d3d-42c6-8ac7-3985e500261e"
+    },
+    {
+      "agent": "matching",
+      "name": "岗位匹配智能体",
+      "status": "pass",
+      "run_status": "succeeded",
+      "elapsed_s": 55.73,
+      "inputs": {
+        "talent_id": "1"
+      },
+      "outputs_keys": [
+        "match_report"
+      ],
+      "report_preview": "<think>\n用户希望我作为一个岗位匹配专家，基于提供的后端匹配结果生成TOP10岗位匹配分析报告。\n要求包括：\n1. Markdown格式表格：岗位/总分/向量分/LLM分/匹配理由\n2. 突出前3个最佳匹配\n3. 给出人才岗位适配方向建议\n\n但是，提供的后端匹配结果数据如下：\n```json\n{\n  \"code\": 200,\n  \"message\": \"匹配完成\",\n  \"data\": {\n    \"success\": true,\n    \"talent_id\": 1,\n    \"position_id\": null,\n    \"match_type\": \"talent_to_position\",\n    \"total_candidates\": 5,\n    \"filtered_candidates\": 0,\n    \"match_results\": []\n  }\n}\n```\n\n可以看到，`match_results` 是一个空数组 `[]`，并且 `total_candidates` 是 5，但实际返回的结果为空。这意味着没有匹配到任何岗位，或者数据缺失。\n\n作为AI，我需要处",
+      "error": "",
+      "raw_data_id": "740b650d-8789-40a6-b68a-5a9029f52a16"
+    },
+    {
+      "agent": "training",
+      "name": "培训赋能智能体",
+      "status": "pass",
+      "run_status": "succeeded",
+      "elapsed_s": 51.17,
+      "inputs": {
+        "talent_id": "1"
+      },
+      "outputs_keys": [
+        "training_report"
+      ],
+      "report_preview": "<think>\n用户希望我作为人才发展顾问，基于提供的后端培训推荐结果，生成一份Markdown格式的培训赋能报告。\n报告需要包含：\n1. 能力差距\n2. 推荐课程TOP5\n3. 学习路径\n4. 时间规划\n5. 突出3个最紧急提升项\n\n但是，提供的后端推荐结果JSON数据中，`gaps`（能力差距）、`recommended_courses`（推荐课程）、`learning_path`（学习路径）都是空数组 `[]`，`capability_profile`（能力画像）是空对象 `{}`。`suggestions` 中有一些通用建议。\n\n既然后端返回的数据为空，我需要：\n1. 指出当前数据为空的情况（或者以顾问的口吻，假设/模拟一些数据来生成报告，或者说明由于系统未返回具体数据，提供一份通用/模板化的报告，并提示需要重新测评或补充数据）。\n2. 为了提供有价值的输出，最好是**模拟/虚构**一些合理的后端开发相关的能力差距、课程、路径等，并在报告中注明这是基于通用后端岗位生成的示例，或者直接以顾问身份说明“由于当前测评数据未完全同步，以下为您生成一份基于标准后端工程师能力模型的赋能报告",
+      "error": "",
+      "raw_data_id": "bccd5669-42d9-4de0-b3f8-356476b2ce18"
+    },
+    {
+      "agent": "data_decision",
+      "name": "数据决策智能体",
+      "status": "pass",
+      "run_status": "succeeded",
+      "elapsed_s": 49.57,
+      "inputs": {
+        "analysis_type": "structure"
+      },
+      "outputs_keys": [
+        "structure_result"
+      ],
+      "report_preview": "<think>\n用户希望我作为一名数据决策分析师，基于提供的后端JSON结构分析结果，生成一份结构化的Markdown报告。\n报告需要满足以下要求：\n1. Markdown格式\n2. 数据用表格呈现\n3. 给出3条可执行的业务洞察建议\n\n分析提供的JSON数据：\n- `total_talents`: 389 (总人才数)\n- `by_status`: `{\"reserve\": 389}` (状态分布：储备人才389人，意味着所有人都是储备状态，没有在职/正式/离职等其他状态，或者当前分析的数据集仅针对储备人才库)\n- `by_education`: `{\"本科\": 384, \"硕士\": 5}` (学历分布：本科384人，硕士5人)\n- `chart`: 饼图数据，展示人才学历结构（本科384，硕士5）\n- `suggestions`: \"建议补充储备人才、加强培训滞后人员赋能、关注关键岗位继任计划。\" (后端提供的建议)\n\n构建报告结构：\n1. 报告标题\n2. 核心数据概览（表格形式）\n3. 人才状态与学历结构分析（表格形式）\n4. 业务洞察与可执行建议（3条，结合后端建议和数据现状进",
+      "error": "",
+      "raw_data_id": "1f9e3d3c-9ce5-4524-a9a9-65e0bece9779"
+    }
+  ]
+}

@@ -1,0 +1,295 @@
+"""
+AI 智能体 API 路由（P1：五大 AI Agent 编排入口）
+- 档案解析 Agent / 测评分析 Agent / 岗位匹配 Agent / 培训赋能 Agent / 数据决策 Agent
+遵循项目规则：所有 AI 能力继承用户权限；Milvus/LLM 不可用时优雅降级（返回结构化结果，不崩溃）。
+"""
+from typing import Optional, Dict, Any
+import threading
+import uuid as _uuid
+import time as _time
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.database import get_mysql_session, get_mysql_engine
+from app.schemas.common import ResponseModel
+from app.core.rbac import PermCode, require_permission_or_403
+
+from app.agents.resume_parser_agent import resume_parser_agent
+from app.agents.assessment_agent import AssessmentAnalysisAgent
+from app.agents.matching_agent import MatchingAgent
+from app.agents.training_agent import training_agent
+from app.agents.data_decision_agent import data_decision_agent
+from app.services.dify_adapter import dify_adapter
+
+router = APIRouter()
+AUTH_AGENT_EXECUTE = require_permission_or_403(PermCode.AGENT_EXECUTE)
+
+
+def _apply_input_gate(result: Any, hint: str) -> Any:
+    """
+    为 Agent 结果补写「输入有效性」显式标记。
+
+    背景：Agent 在目标记录不存在时返回 success=False，但 HTTP 状态与 code 仍为 200，
+    调用方（含 Dify 工作流、前端）若只判断状态码，会把无数据的失败结果当作有效输入，
+    继续生成一份「看似完整、实为推测」的报告——这是 AI 应用特有的可靠性风险。
+
+    本函数不改动状态码（保持与既有集成测试一致），而是补一个机器可判定的字段：
+      - data_valid:  False 表示输入数据无效，调用方应中止后续报告生成
+      - gate:        "input_validation_failed"
+      - gate_message: 人类可读的原因说明
+    """
+    if not isinstance(result, dict):
+        return result
+    if result.get("success") is False:
+        result.setdefault("data_valid", False)
+        result.setdefault("gate", "input_validation_failed")
+        result.setdefault("gate_message", hint)
+    else:
+        result.setdefault("data_valid", True)
+    return result
+
+
+def _gate_message(result: Dict[str, Any], default: str) -> str:
+    """根据门禁结果给出响应 message（无效输入时明确说明未生成报告）。"""
+    if isinstance(result, dict) and result.get("data_valid") is False:
+        return "输入数据无效，未生成报告"
+    return default
+
+
+@router.post("/parse-resume", response_model=ResponseModel, summary="档案解析Agent")
+async def parse_resume_agent(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_mysql_session),
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """档案解析 Agent：简历解析→字段标准化→标签→画像→查重"""
+    file_path = payload.get("file_path")
+    file_name = payload.get("file_name", "resume")
+    # 兼容 Dify Workflow 传纯文本 resume_text（无文件路径场景）：写临时文件再走原流程
+    resume_text = payload.get("resume_text")
+    if not file_path and resume_text:
+        import os, tempfile
+        file_path = os.path.join(tempfile.gettempdir(), f"dify_resume_{os.getpid()}.txt")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(resume_text)
+        # 修正：file_name 必须带 .txt 扩展名，否则解析器按扩展名判格式会报"不支持的文件格式"
+        file_name = f"resume_{os.getpid()}.txt"
+    # if not file_path:
+    #     raise HTTPException(status_code=400, detail="file_path 必填")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="file_path 或 resume_text 必填")
+    try:
+        result = await resume_parser_agent.parse_resume(file_path, file_name)
+        return ResponseModel(code=200, message="解析完成", data=result)
+    except Exception as e:
+        return ResponseModel(code=500, message=f"档案解析失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+@router.post("/analyze-assessment", response_model=ResponseModel, summary="测评分析Agent")
+async def analyze_assessment_agent(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_mysql_session),
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """测评分析 Agent：结果分析→雷达图→优劣分析→发展建议"""
+    # result_id = payload.get("result_id")
+    # 兼容 Dify Workflow 传 assessment_result_id
+    result_id = payload.get("result_id") or payload.get("assessment_result_id")
+    if not result_id:
+        raise HTTPException(status_code=400, detail="result_id 必填")
+    try:
+        result = AssessmentAnalysisAgent().analyze(result_id)
+        result = _apply_input_gate(result, hint=f"测评结果不存在或不可分析: result_id={result_id}")
+        return ResponseModel(code=200, message=_gate_message(result, "分析完成"), data=result)
+    except Exception as e:
+        return ResponseModel(code=500, message=f"测评分析失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+@router.post("/match-position", response_model=ResponseModel, summary="岗位匹配Agent")
+async def match_position_agent(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_mysql_session),
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """岗位匹配 Agent：硬条件过滤 + 向量匹配 + LLM 精排"""
+    position_id = payload.get("position_id")
+    talent_id = payload.get("talent_id")
+    try:
+        if position_id:
+            result = MatchingAgent().match_position_to_talents(int(position_id))
+            result = _apply_input_gate(result, hint=f"岗位不存在或无法匹配: position_id={position_id}")
+        elif talent_id:
+            result = MatchingAgent().match_talent_to_positions(int(talent_id))
+            result = _apply_input_gate(result, hint=f"人才不存在或无法匹配: talent_id={talent_id}")
+        else:
+            raise HTTPException(status_code=400, detail="position_id 或 talent_id 必填其一")
+        return ResponseModel(code=200, message=_gate_message(result, "匹配完成"), data=result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return ResponseModel(code=500, message=f"岗位匹配失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+@router.post("/recommend-training", response_model=ResponseModel, summary="培训赋能Agent")
+async def recommend_training_agent(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_mysql_session),
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """培训赋能 Agent：能力缺口诊断 + 个性化学习路径 + 课程推荐"""
+    talent_id = payload.get("talent_id")
+    position_id = payload.get("position_id")
+    if not talent_id:
+        raise HTTPException(status_code=400, detail="talent_id 必填")
+    try:
+        result = training_agent.analyze(int(talent_id), int(position_id) if position_id else None)
+        result = _apply_input_gate(result, hint=f"人才不存在或无法生成培训方案: talent_id={talent_id}")
+        return ResponseModel(code=200, message=_gate_message(result, "培训推荐完成"), data=result)
+    except Exception as e:
+        return ResponseModel(code=500, message=f"培训推荐失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+@router.post("/data-analysis", response_model=ResponseModel, summary="数据决策Agent")
+async def data_analysis_agent(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_mysql_session),
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """数据决策 Agent：结构/趋势/异常分析 或 NL2SQL 自然语言查询"""
+    analysis_type = payload.get("analysis_type", "structure")
+    question = payload.get("question")
+    try:
+        if analysis_type == "nl2sql":
+            result = data_decision_agent.analyze(
+                analysis_type="nl2sql",
+                nl2sql_question=question,
+                engine=get_mysql_engine(),  # 传入只读 engine，让 SQL 真正执行返回结果
+                db=db
+            )
+        else:
+            result = data_decision_agent.analyze(analysis_type=analysis_type, db=db)
+        return ResponseModel(code=200, message="分析完成", data=result)
+    except Exception as e:
+        return ResponseModel(code=500, message=f"数据分析失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+@router.post("/nl2sql", response_model=ResponseModel, summary="自然语言查询")
+async def nl2sql_query(
+    payload: Dict[str, Any],
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """自然语言→SQL→只读分析（经 VannaAdapter 安全层，仅只读库执行）"""
+    question = payload.get("question")
+    if not question:
+        raise HTTPException(status_code=400, detail="question 必填")
+    try:
+        result = data_decision_agent.analyze(
+            analysis_type="nl2sql",
+            nl2sql_question=question,
+            engine=get_mysql_engine()  # 传入只读 engine，让 SQL 真正执行返回结果
+        )
+        return ResponseModel(code=200, message="NL2SQL 完成", data=result)
+    except Exception as e:
+        return ResponseModel(code=500, message=f"NL2SQL 失败: {str(e)}", data={"success": False, "error": str(e)})
+
+
+# 支持生成深度报告的各 Agent 类型
+_DIFY_REPORT_AGENTS = {"resume", "assessment", "matching", "training", "data_decision"}
+
+# ── Dify 深度报告 异步任务表（单进程内存存储，演示/答辩足够）────────────
+# task_id -> {status: pending|running|success|failed, agent, report, message, created_at, updated_at}
+_dify_tasks: Dict[str, Dict[str, Any]] = {}
+_dify_tasks_lock = threading.Lock()
+_DIFY_TASK_TTL = 3600  # 任务结果保留 1h（防内存膨胀，过期懒清理）
+
+
+def _run_dify_task_async(agent: str, inputs: Dict[str, Any], task_id: str, timeout: int = 300):
+    """后台线程执行 Dify 工作流生成报告，结果写入任务表。"""
+    try:
+        with _dify_tasks_lock:
+            if task_id in _dify_tasks:
+                _dify_tasks[task_id]["status"] = "running"
+                _dify_tasks[task_id]["updated_at"] = _time.time()
+        result = dify_adapter.run_report(agent=agent, inputs=inputs, timeout=timeout)
+        with _dify_tasks_lock:
+            if task_id in _dify_tasks:
+                if result.get("success"):
+                    _dify_tasks[task_id].update(
+                        status="success", report=result.get("report", ""),
+                        message="深度报告生成完成", updated_at=_time.time())
+                else:
+                    _dify_tasks[task_id].update(
+                        status="failed", report="",
+                        message=result.get("message", "Dify 深度报告生成失败"),
+                        updated_at=_time.time())
+    except Exception as e:
+        with _dify_tasks_lock:
+            if task_id in _dify_tasks:
+                _dify_tasks[task_id].update(status="failed", message=str(e), updated_at=_time.time())
+
+
+@router.post("/dify-report", response_model=ResponseModel, summary="提交 Dify 深度报告任务（异步）")
+async def dify_deep_report_submit(
+    payload: Dict[str, Any],
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """
+    提交 Dify 深度报告任务（异步，立即返回 task_id，前端轮询结果）。
+
+    设计（异步任务模式）：
+    - 本地 Agent 结构化结果已驱动前端表格/雷达图（主链路不变）；
+    - Dify 工作流链路长（内部回调本后端再叠加 LLM 生成，30s~数分钟），
+      同步等待不可靠，故改为「提交即返回 + 后台线程执行 + 前端轮询」；
+    - Dify 未启用/无 key/失败 → 任务 status=failed，前端据此优雅降级。
+
+    请求: { agent, inputs, timeout? }
+    返回: data = { task_id, status: "pending|running" }
+    """
+    agent = (payload.get("agent") or "").strip().lower()
+    if agent not in _DIFY_REPORT_AGENTS:
+        raise HTTPException(status_code=400, detail=f"不支持的 agent 类型: {agent}（可选: {sorted(_DIFY_REPORT_AGENTS)}）")
+    inputs = payload.get("inputs") or {}
+    timeout = int(payload.get("timeout", 300))
+
+    task_id = f"dr_{int(_time.time() * 1000)}{_uuid.uuid4().hex[:6]}"
+    # 过期懒清理
+    now = _time.time()
+    with _dify_tasks_lock:
+        for tid in [t for t, v in _dify_tasks.items() if now - v.get("created_at", now) > _DIFY_TASK_TTL]:
+            _dify_tasks.pop(tid, None)
+        _dify_tasks[task_id] = {
+            "status": "pending", "agent": agent, "report": "", "message": "任务已提交",
+            "created_at": now, "updated_at": now,
+        }
+
+    thread = threading.Thread(target=_run_dify_task_async, args=(agent, inputs, task_id, timeout), daemon=True)
+    thread.start()
+    return ResponseModel(code=200, message="深度报告任务已提交", data={
+        "task_id": task_id, "status": "pending", "agent": agent,
+        "hint": "Dify 工作流执行约需 30s~数分钟，请轮询查询进度。",
+    })
+
+
+@router.get("/dify-report/{task_id}", response_model=ResponseModel, summary="查询 Dify 深度报告任务")
+async def dify_deep_report_query(
+    task_id: str,
+    current_user: dict = Depends(AUTH_AGENT_EXECUTE)
+):
+    """查询 Dify 深度报告任务状态；完成后返回 report。"""
+    with _dify_tasks_lock:
+        task = dict(_dify_tasks.get(task_id) or {})
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在或已过期")
+    data = {
+        "task_id": task_id,
+        "status": task.get("status"),
+        "agent": task.get("agent"),
+        "report": task.get("report", ""),
+        "message": task.get("message"),
+    }
+    if task.get("status") == "success":
+        return ResponseModel(code=200, message="深度报告生成完成", data=data)
+    if task.get("status") == "failed":
+        return ResponseModel(code=200, message="深度报告生成失败", data=data)
+    # pending / running
+    return ResponseModel(code=202, message="深度报告生成中", data=data)

@@ -1,0 +1,71 @@
+<Slide notes={`这是平台最核心的一张架构图，六层架构加四库混合存储。
+
+左边是六层架构，从上到下：用户接入层、业务服务层、AI 智能核心层、数据存储层、数据接入层、基础设施层。其中 AI 智能核心层是灵魂，里面跑的是五大 LangGraph 智能体、RAG 知识库、NL2SQL 决策。
+
+右边是四库混合存储，这是关键设计决策。我们为什么不用单一数据库？因为四类诉求单库都满足不了：MySQL 负责业务主数据和权限，保证事务一致性；PostgreSQL 存海量人才履历和分析宽表，支撑时序分析；Milvus 是向量库，支撑语义检索；Redis 做热点缓存和限流。四库各司其职，是 AI 原生平台的必然选型。
+
+这套架构的落地不是纸面设计，是真实接线——Milvus 向量库、Dify 中台、SiliconFlow 大模型全部打通，实测可用。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>02 · 总体设计</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>六层架构 × 四库混合存储，支撑 AI 原生能力</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左：六层架构 SVG */}
+      <Box style={{ flex: 5, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 12 }}>六层架构</Text>
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 6, justifyContent: 'space-between' }}>
+          {[
+            ['用户接入层', 'PC · 移动端 H5 / 小程序', '#061F32'],
+            ['业务服务层', 'FastAPI · 8 路由 / 10 服务', '#0A2E4A'],
+            ['AI 智能核心层', '五大 Agent · RAG · NL2SQL', '#08A6F6'],
+            ['数据存储层', 'MySQL · PgSQL · Milvus · Redis', '#0E3A5C'],
+            ['数据接入层', '历史迁移 · 第三方对接', '#123B5E'],
+            ['基础设施层', 'Docker · Nginx · 国产化', '#163E61'],
+          ].map((layer, idx) => (
+            <Box key={idx} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', background: layer[2], borderRadius: 4, padding: '0 20' }}>
+              <Text style={{ fontSize: 20, color: '#FFFFFF', fontWeight: 'bold', width: 150 }}>{layer[0]}</Text>
+              <Box style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.3)', marginRight: 20 }} />
+              <Text style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)' }}>{layer[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* 右：四库存储 */}
+      <Box style={{ flex: 4, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 12 }}>四库混合存储</Text>
+        <Box style={{ flexDirection: 'column', gap: 12 }}>
+          {[
+            ['MySQL', '业务主数据 · 权限 · 配置', '事务一致性'],
+            ['PostgreSQL', '海量履历 · 时序行为 · 宽表', '分析能力'],
+            ['Milvus', '向量知识库 · 语义检索', '语义检索'],
+            ['Redis', '热点缓存 · 会话 · 限流', '高性能'],
+          ].map((db, idx) => (
+            <Box key={idx} style={{ padding: '14 18', background: '#FFFFFF', borderRadius: 4, border: '1px solid #E7E6E6', borderLeft: '3px solid #08A6F6', flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 19, color: '#061F32', fontWeight: 'bold', width: 110 }}>{db[0]}</Text>
+              <Box style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, color: '#44546A' }}>{db[1]}</Text>
+                <Text style={{ fontSize: 14, color: '#808080', marginTop: 2 }}>→ {db[2]}</Text>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+        <Box style={{ marginTop: 'auto', paddingTop: 12 }}>
+          <Text style={{ fontSize: 16, color: '#44546A', fontStyle: 'italic', lineHeight: 1.5 }}>
+            四类诉求单库无法兼顾，四库各司其职是 AI 原生平台的必然选型。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：README.md · 六层架构 / 四库混合存储</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>08 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

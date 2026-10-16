@@ -1,0 +1,63 @@
+<Slide notes={`这一页讲测试体系。
+
+我们采用三层验证，而不是单层。第一层单元测试，四十五个，用 SQLite 内存库跑，覆盖认证、人才、岗位、RAG 等核心逻辑；第二层集成测试，二十八个，用 TestClient 覆盖全部 API 端点；第三层 Dify 联调测试，五个，验证五个智能体从 Dify 工作流到后端 Agent 再到大模型的端到端链路。
+
+总共七十八个测试全绿，覆盖率百分之八十五。
+
+三层验证的意义在于：单元测试保证函数级正确，集成测试保证接口级正确，Dify 联调保证真实外部链路正确。这样任何一层的回归问题都能被尽早发现。而且单元测试用内存库，不连生产库，符合"验证脚本不碰生产数据"的规范。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>04 · 质量验证</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>三层验证体系，78 测试全绿覆盖率 85%</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左：测试分层图表 */}
+      <Box style={{ flex: 5, flexDirection: 'column' }}>
+        <Chart
+          chartType='barChart'
+          barDirection='bar'
+          grouping='clustered'
+          showLegend={false}
+          showDataLabels={true}
+          dataLabelColor='#061F32'
+          axisColor='#808080'
+          colors={['#08A6F6']}
+          background='#FFFFFF'
+          style={{ flex: 1, minHeight: 360 }}
+          data={[
+            ['测试层级', '数量'],
+            ['单元测试', 45],
+            ['集成测试', 28],
+            ['Dify 联调', 5],
+          ]}
+        />
+      </Box>
+
+      {/* 右：层级说明 */}
+      <Box style={{ flex: 5, flexDirection: 'column', justifyContent: 'center', gap: 18 }}>
+        {[
+          ['单元测试 · 45', 'SQLite 内存库，覆盖认证/人才/岗位/RAG 核心逻辑，函数级正确'],
+          ['集成测试 · 28', 'TestClient 覆盖 8 类 API 全端点，接口级正确'],
+          ['Dify 联调 · 5', 'Dify→后端 Agent→LLM 报告，外部链路端到端正确'],
+        ].map((t, idx) => (
+          <Box key={idx} style={{ padding: '14 18', background: 'rgba(6,31,50,0.04)', borderRadius: 4, borderLeft: '3px solid #08A6F6' }}>
+            <Text style={{ fontSize: 20, color: '#061F32', fontWeight: 'bold' }}>{t[0]}</Text>
+            <Text style={{ fontSize: 16, color: '#44546A', marginTop: 4, lineHeight: 1.5 }}>{t[1]}</Text>
+          </Box>
+        ))}
+        <Box style={{ padding: '14 18', background: '#061F32', borderRadius: 4 }}>
+          <Text style={{ fontSize: 18, color: '#FFFFFF', fontWeight: 'bold' }}>78 / 78 全绿 · 覆盖率 85%</Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：backend/tests/*.py · 78 测试全绿报告</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>16 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

@@ -1,0 +1,41 @@
+<Slide notes={`整份汇报我分为五个部分。
+
+第一章讲项目背景和建设目标，让各位了解我们为什么做、要做到什么程度。第二章是总体架构和技术选型，讲清楚技术底座怎么搭。第三章是核心能力，重点讲五大智能体和十三项 P0 功能。第四章用实测数据回答"质量到底怎么样"。第五章汇报交付成果和后续规划。
+
+其中第三、四章是重点，我建议各位评委可以重点关注。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    {/* B 标题块 */}
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>汇报目录</Text>
+      <Text style={{ fontSize: 16, color: '#808080', marginTop: 4 }}>五个章节 · 从背景到交付的完整闭环</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 28 }} />
+
+    {/* 目录条目：5 章 */}
+    <Box style={{ flexDirection: 'column', gap: 0, flex: 1, justifyContent: 'space-between' }}>
+      {[
+        { no: '01', title: '项目概况', sub: '背景·目标·团队', desc: '为什么做、目标是什么、6 人团队分工与 7 天交付的挑战' },
+        { no: '02', title: '总体设计', sub: '架构与技术选型', desc: '六层架构与四库混合存储的技术底座，LLM 三层降级策略' },
+        { no: '03', title: '核心能力', sub: '五大智能体与功能', desc: '五大专属 Agent、13 项 P0 功能、RAG 与 NL2SQL 智能决策' },
+        { no: '04', title: '质量验证', sub: '测试与性能实测', desc: '78 测试全绿、覆盖率 85%、延迟与精度关键指标实测' },
+        { no: '05', title: '交付展望', sub: '成果与后续规划', desc: '验收交付物、安全合规与国产化、P2 边界与演进方向' },
+      ].map((item, idx) => (
+        <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', padding: '16 0', borderBottom: idx === 4 ? 'none' : '1px solid #E7E6E6' }}>
+          <Text style={{ fontSize: 48, color: idx === 0 ? '#08A6F6' : '#99BDED', fontWeight: 'bold', width: 110, letterSpacing: 1 }}>{item.no}</Text>
+          <Box style={{ width: 1, height: 44, background: '#E7E6E6', marginRight: 24 }} />
+          <Box style={{ width: 220 }}>
+            <Text style={{ fontSize: 28, color: '#061F32', fontWeight: 'bold' }}>{item.title}</Text>
+            <Text style={{ fontSize: 16, color: '#08A6F6', marginTop: 2 }}>{item.sub}</Text>
+          </Box>
+          <Text style={{ fontSize: 20, color: '#44546A', flex: 1, lineHeight: 1.5 }}>{item.desc}</Text>
+        </Box>
+      ))}
+    </Box>
+
+    {/* 页脚 */}
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>AI数字化人才平台 · 项目评审答辩</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>02 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

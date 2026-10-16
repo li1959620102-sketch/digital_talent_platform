@@ -1,0 +1,13 @@
+<Slide notes={`最后一章，交付与展望。
+
+我会汇报我们交付了哪些成果、安全合规和国产化做到了什么程度，以及后续的演进方向。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    <Text style={{ position: 'absolute', left: 40, top: 120, fontSize: 260, fontWeight: 'bold', color: 'rgba(255,255,255,0.08)', lineHeight: 1 }}>05</Text>
+    <Box style={{ position: 'absolute', left: 320, top: 260 }}>
+      <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 3, marginBottom: 20 }}>CHAPTER 05</Text>
+      <Text style={{ fontSize: 52, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.2 }}>交付展望</Text>
+      <Text style={{ fontSize: 24, color: '#99BDED', marginTop: 20, letterSpacing: 1 }}>成果与后续规划 · 交付物齐备，安全合规可控</Text>
+    </Box>
+    <Box style={{ position: 'absolute', left: 320, bottom: 120, width: 80, height: 3, background: '#08A6F6' }} />
+  </Box>
+</Slide>

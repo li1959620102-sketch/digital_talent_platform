@@ -1,0 +1,20 @@
+{
+  "matching_rubric": "相关(relevant=1) 判定：满足学历硬性要求 且 满足经验要求 且 命中>=2/3 的必备技能；否则不相关(0)。阈值 match_score>=85 判为相关。",
+  "threshold": 85,
+  "cases": [
+    {"id": "M01", "talent": {"education": "本科", "experience_years": 5, "skills": ["Python", "FastAPI", "SQL"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M02", "talent": {"education": "硕士", "experience_years": 8, "skills": ["Python", "FastAPI", "SQL", "Redis"]}, "position": {"education_requirement": "本科", "experience_requirement": 5, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M03", "talent": {"education": "大专", "experience_years": 2, "skills": ["Python"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 0},
+    {"id": "M04", "talent": {"education": "本科", "experience_years": 1, "skills": ["Python"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 0},
+    {"id": "M05", "talent": {"education": "本科", "experience_years": 4, "skills": ["Python", "FastAPI"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M06", "talent": {"education": "博士", "experience_years": 10, "skills": ["Python", "FastAPI", "SQL", "Docker", "K8s"]}, "position": {"education_requirement": "硕士", "experience_requirement": 8, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M07", "talent": {"education": "本科", "experience_years": 5, "skills": []}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 0},
+    {"id": "M08", "talent": {"education": "高中", "experience_years": 0, "skills": []}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python"]}, "expected_relevant": 0},
+    {"id": "M09", "talent": {"education": "本科", "experience_years": 3, "skills": ["Python", "FastAPI", "SQL", "React"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M10", "talent": {"education": "大专", "experience_years": 6, "skills": ["Python", "FastAPI", "SQL"]}, "position": {"education_requirement": "大专", "experience_requirement": 5, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 1},
+    {"id": "M11", "talent": {"education": "本科", "experience_years": 3, "skills": ["Python", "FastAPI", "SQL"]}, "position": {"education_requirement": "硕士", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL"]}, "expected_relevant": 0},
+    {"id": "M12", "talent": {"education": "本科", "experience_years": 3, "skills": ["Python"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI"]}, "expected_relevant": 0},
+    {"id": "M13", "talent": {"education": "硕士", "experience_years": 5, "skills": ["Python", "FastAPI"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "Go"]}, "expected_relevant": 1},
+    {"id": "M14", "talent": {"education": "本科", "experience_years": 2, "skills": ["Python"]}, "position": {"education_requirement": "本科", "experience_requirement": 3, "skill_requirements": ["Python", "FastAPI", "SQL", "Go"]}, "expected_relevant": 0}
+  ]
+}

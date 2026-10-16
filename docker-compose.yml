@@ -1,0 +1,255 @@
+services:
+  # MySQL - 业务主数据
+  mysql:
+    image: mysql:8.0
+    container_name: digital_talent_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在根目录 .env 设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: digital_talent
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - digital_talent_network
+
+  # PostgreSQL - 海量分析数据
+  postgres:
+    image: postgres:15
+    container_name: digital_talent_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在根目录 .env 设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: digital_talent_analytics
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - digital_talent_network
+
+  # Redis - 缓存与实时计算
+  redis:
+    image: redis:7-alpine
+    container_name: digital_talent_redis
+    restart: always
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在根目录 .env 设置 REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?请在根目录 .env 设置 REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - digital_talent_network
+
+  # etcd - Milvus 元数据存储
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: digital_talent_etcd
+    restart: always
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - digital_talent_network
+
+  # MinIO - 对象存储（简历 / 知识文档）
+  # 说明（2026-10-13 修复）：此前该服务被整体注释，意图复用外部 milvus-minio 容器。存在两个问题：
+  #   ① milvus 服务的 MINIO_ADDRESS 指向主机名 minio，而 minio 服务未定义，
+  #      docker compose 校验依赖图时会直接报错 "depends on undefined service"，全栈无法启动；
+  #   ② 复用外部容器不可复现，第三方拿到本项目无法独立部署。
+  # 故恢复为自包含定义。端口 9100/9101 与 backend/.env 的 MINIO_ENDPOINT=localhost:9100 一致。
+  minio:
+    image: minio/minio:latest
+    container_name: digital_talent_minio
+    restart: always
+    environment:
+      # MinIO 现行标准变量名（旧名 MINIO_ACCESS_KEY/MINIO_SECRET_KEY 已弃用）
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?请在根目录 .env 设置 MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?请在根目录 .env 设置 MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - digital_talent_network
+
+  # Milvus - 向量数据库
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: digital_talent_milvus
+    restart: always
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?请在根目录 .env 设置 MINIO_ROOT_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?请在根目录 .env 设置 MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:19530:19530"
+      - "127.0.0.1:9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    command: ["milvus", "run", "standalone"]
+    depends_on:
+      - etcd
+      - minio
+    networks:
+      - digital_talent_network
+
+  # FastAPI后端
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: digital_talent_backend
+    restart: always
+    expose:
+      - "8000"
+    environment:
+      # ── 数据库 ──
+      # 变量名必须与 app/core/config.py 的字段名一致。Settings 配置了 extra="allow"，
+      # 变量名拼错会被静默忽略并回退默认值，导致连错库且不报错。
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD:?请在根目录 .env 设置 MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=digital_talent
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?请在根目录 .env 设置 POSTGRES_PASSWORD}
+      - POSTGRES_DATABASE=digital_talent_analytics
+      # ── 缓存 ──
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?请在根目录 .env 设置 REDIS_PASSWORD}
+      # ── 向量库 ──
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - EMBEDDING_DIM=1024
+      # ── 对象存储：容器内必须用服务名 minio，不能用 localhost ──
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?请在根目录 .env 设置 MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?请在根目录 .env 设置 MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=resumes
+      - MINIO_SECURE=false
+      # ── AI 推理 ──
+      - OLLAMA_BASE_URL=http://ollama:11434
+      # ── 运行参数 ──
+      - DEBUG=false
+      # SECRET_KEY 不设默认值：缺失时 compose 直接报错，避免弱密钥误入生产。
+      # 生成：python -c "import secrets;print(secrets.token_urlsafe(64))"
+      # 写入：项目根目录 .env（docker compose 会自动读取）
+      - SECRET_KEY=${SECRET_KEY:?未设置 SECRET_KEY。请生成强随机密钥并写入项目根目录 .env，形如 SECRET_KEY=<64位随机串>}
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-admin}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:?请在根目录 .env 设置 INITIAL_ADMIN_PASSWORD}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:?生产环境必须明确设置 AUTH_COOKIE_SECURE}
+      - CORS_ORIGINS=${CORS_ORIGINS:?请设置生产前端的 HTTPS 来源，例如 ["https://talent.example.com"]}
+    volumes:
+      # 生产环境不挂载源码覆盖镜像内代码（避免宿主机文件与镜像版本漂移）。
+      # 需要本地热更新调试时，请在 docker-compose.dev.yml 中挂载。
+      # - ./backend:/app
+      - backend_media:/app/media
+      - backend_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - digital_talent_network
+
+  # Ollama - 本地大模型
+  ollama:
+    image: ollama/ollama:latest
+    container_name: digital_talent_ollama
+    restart: always
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - digital_talent_network
+
+  # Nginx反向代理
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    container_name: digital_talent_nginx
+    restart: always
+    ports:
+      # 443 暂未启用：docker/nginx/conf.d/default.conf 仅监听 80，且 ssl 目录无证书文件。
+      # 启用 HTTPS：① 证书放入 docker/nginx/ssl/ ② 在 default.conf 增加 443 server 块
+      # ③ 取消下面 443 端口与 ssl 卷挂载的注释。
+      - "80:80"
+      # - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      # - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - digital_talent_network
+
+volumes:
+  mysql_data:
+  pg_data:
+  redis_data:
+  etcd_data:
+  minio_data:
+  milvus_data:
+  ollama_data:
+  backend_media:
+  backend_logs:
+
+networks:
+  digital_talent_network:
+    driver: bridge

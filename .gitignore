@@ -1,0 +1,171 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.db
+*.sqlite3
+chromadb/
+vanna_chroma/
+logs/
+media/
+uploads/
+.uploads_backup/
+staticfiles/
+node_modules/
+dist/
+build/
+*.pyc
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+.pytest_cache/
+
+# WorkBuddy 助手工作数据（记忆/任务日志，不入库）
+.workbuddy/
+
+# 幻灯片工具缓存
+.slidep/
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Milvus data
+milvus_data/
+
+# Redis data
+redis_data/
+
+# MySQL data
+mysql_data/
+
+# PostgreSQL data
+pg_data/
+
+# MinIO data
+minio_data/
+
+# 根目录下的整包压缩备份（143MB，不入库）
+*.rar
+*.zip
+*.7z
+
+# 知识库 RAG 种子文档：重建向量索引所需，随仓库分发（其余 media 上传内容仍忽略）
+!backend/media/
+backend/media/*
+!backend/media/knowledge/

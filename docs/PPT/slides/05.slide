@@ -1,0 +1,77 @@
+<Slide notes={`这一页讲清楚我们的建设范围，也就是"完成了什么、没做什么"，这体现工程诚信。
+
+左边是十三项 P0 功能，这是首次验收必须完成的能力，从人才档案、智能测评、岗位匹配、培训赋能，到决策看板、NL2SQL 数据决策、RAG 知识库问答，再到五大智能体、技能组件库、权限管控、移动端适配、数据迁移和国产化部署。这十三项我们全部落地。
+
+右边是 P2 阶段的环境依赖项。这里我要特别说明：2000 并发压测、国产化 arm64 实跑、移动端真机适配、生产容器全量部署，这四项不是代码没写，而是需要特定的生产环境或真机硬件才能验证，本机 x64 无法实测。所以我们诚实标记为"待验证"，不虚标完成。
+
+这个边界对评审很关键——我们把"已完成且经实测"和"已实现但待环境验证"分得很清楚。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>01 · 项目概况</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>建设范围：13 项 P0 全部落地，P2 明确边界</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左栏：P0 功能 */}
+      <Box style={{ flex: 6, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 24, color: '#061F32', fontWeight: 'bold', marginBottom: 16 }}>P0 · 首次验收必须完成（13 项 ✅）</Text>
+        <Box style={{ flexDirection: 'column', gap: 10, flex: 1, justifyContent: 'space-between' }}>
+          {[
+            ['人才智能档案管理', 'AI简历解析·智能标签·画像·语义检索'],
+            ['AI智能测评与评估', '多类型测评·自动评分·能力雷达图'],
+            ['AI岗位人才匹配', '双向精准匹配·分值·依据可视化'],
+            ['数字化智能培训', '课程库·个性化推送·学习管控'],
+            ['数据可视化决策看板', '核心数据可视化·多维统计'],
+            ['自然语言数据决策', 'NL2SQL·自动研判·智能报告'],
+            ['人才RAG问答知识库', '私有化知识库·精准问答'],
+            ['AI Agent多智能体', '五大专属智能体协同'],
+            ['Skills技能组件库', '组件封装·可视化编排'],
+            ['权限安全管控', 'RBAC+行级+字段级权限'],
+            ['移动端适配', 'PC端+移动端H5/小程序'],
+            ['数据迁移与对接', '历史迁移·第三方对接'],
+            ['部署与国产化适配', 'Docker部署·国产化兼容'],
+          ].map((item, idx) => (
+            <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <Box style={{ width: 22, height: 22, borderRadius: 4, background: '#08A6F6', justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: '#FFFFFF', fontWeight: 'bold' }}>✓</Text>
+              </Box>
+              <Text style={{ fontSize: 19, color: '#061F32', fontWeight: 'bold', width: 190 }}>{item[0]}</Text>
+              <Text style={{ fontSize: 17, color: '#44546A', flex: 1 }}>{item[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* 右栏：P2 边界 */}
+      <Box style={{ flex: 4, flexDirection: 'column', background: 'rgba(6,31,50,0.04)', borderRadius: 6, padding: 20 }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>P2 · 环境依赖项（待验证）</Text>
+        <Box style={{ flexDirection: 'column', gap: 16 }}>
+          {[
+            ['2000 并发压测', '需生产 GPU / 多 worker'],
+            ['国产化 arm64 实跑', '需麒麟/统信 + 鲲鹏/飞腾'],
+            ['移动端真机适配', '需 Android / iOS 真机'],
+            ['生产容器全量部署', '需生产级环境实测'],
+          ].map((item, idx) => (
+            <Box key={idx} style={{ padding: '14 16', background: '#FFFFFF', borderRadius: 4, borderLeft: '3px solid #99BDED' }}>
+              <Text style={{ fontSize: 19, color: '#061F32', fontWeight: 'bold' }}>{item[0]}</Text>
+              <Text style={{ fontSize: 15, color: '#808080', marginTop: 4 }}>{item[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+        <Box style={{ marginTop: 'auto', paddingTop: 16 }}>
+          <Text style={{ fontSize: 16, color: '#44546A', lineHeight: 1.5, fontStyle: 'italic' }}>
+            「代码已实现，仅环境受限无法实测，不阻塞验收签字」
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：PROJECT_PROGRESS.md · P0/P1/P2 状态表</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>05 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

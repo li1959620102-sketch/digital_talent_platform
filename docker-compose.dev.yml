@@ -1,0 +1,59 @@
+services:
+  # MySQL - 业务主数据
+  # 说明：已移除顶层 `version` 属性——Compose V2 已废弃该字段并会输出警告。
+  mysql:
+    image: mysql:8.0
+    container_name: digital_talent_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: digital_talent
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    networks:
+      - digital_talent_network
+
+  # PostgreSQL - 海量分析数据
+  postgres:
+    image: postgres:15
+    container_name: digital_talent_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: digital_talent_analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - digital_talent_network
+
+  # Redis - 缓存与实时计算
+  redis:
+    image: redis:7-alpine
+    container_name: digital_talent_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - digital_talent_network
+
+volumes:
+  mysql_data:
+  pg_data:
+  redis_data:
+
+networks:
+  digital_talent_network:
+    driver: bridge

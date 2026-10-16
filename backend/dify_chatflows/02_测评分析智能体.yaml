@@ -1,0 +1,226 @@
+app:
+  description: 基于人才测评结果生成能力分析报告，含优势短板与培训建议
+  icon: 📋
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: 测评分析智能体
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/tongyi:0.2.7@9587f91307469366cc92b449277c289655403abaab33c2303e3069a02c868ae6
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: start
+        targetType: http-request
+      id: 1715100000001-source-1715100000002-target
+      source: '1715100000001'
+      sourceHandle: source
+      target: '1715100000002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: http-request
+        targetType: llm
+      id: 1715100000002-source-1715100000003-target
+      source: '1715100000002'
+      sourceHandle: source
+      target: '1715100000003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: llm
+        targetType: end
+      id: 1715100000003-source-1715100000004-target
+      source: '1715100000003'
+      sourceHandle: source
+      target: '1715100000004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - id: '1715100000001'
+      position:
+        x: 80
+        y: 240
+      positionAbsolute:
+        x: 80
+        y: 240
+      height: 90
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 人才ID
+          max_length: 16
+          required: true
+          type: text-input
+          variable: talent_id
+        - label: 测评结果ID
+          max_length: 16
+          required: true
+          type: text-input
+          variable: assessment_result_id
+    - id: '1715100000002'
+      position:
+        x: 380
+        y: 240
+      positionAbsolute:
+        x: 380
+        y: 240
+      height: 165
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        authorization:
+          config:
+            api_key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsImV4cCI6MTgxOTc5NjY3NCwiaWF0IjoxNzg4MjYwNjc0LCJ0eXBlIjoiYWNjZXNzIn0.JwBhVWuEr4FU49vHBIFa6dV4a8JuW6jOJ9iz3Denw2I
+            type: bearer
+          type: api-key
+        body:
+          data:
+          - type: text
+            value: '{"talent_id": "{{#1715100000001.talent_id#}}", "assessment_result_id":
+              "{{#1715100000001.assessment_result_id#}}"}'
+          type: json
+        desc: POST → /api/v1/agents/analyze-assessment
+        headers: ''
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        title: 调用后端测评分析
+        type: http-request
+        url: http://host.docker.internal:8003/api/v1/agents/analyze-assessment
+        variables: []
+    - id: '1715100000003'
+      position:
+        x: 680
+        y: 240
+      positionAbsolute:
+        x: 680
+        y: 240
+      height: 87
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        selected: false
+        title: 生成测评报告
+        type: llm
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: qwen3.7-max
+          provider: langgenius/tongyi/tongyi
+        prompt_template:
+        - id: p-1715100000003-sys
+          role: system
+          text: '你是人才测评分析师。基于后端测评结果生成结构化测评报告。
+
+
+            要求：
+
+            1. Markdown格式
+
+            2. 包含：能力维度得分/优势/短板/培训建议
+
+            3. 数据用表格呈现'
+        - id: p-1715100000003-user
+          role: user
+          text: '后端测评结果：
+
+            {{#1715100000002.body#}}
+
+
+            请生成测评分析报告。'
+        vision:
+          enabled: false
+    - id: '1715100000004'
+      position:
+        x: 980
+        y: 240
+      positionAbsolute:
+        x: 980
+        y: 240
+      height: 88
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        desc: ''
+        selected: false
+        title: 输出-assessment_report
+        type: end
+        outputs:
+        - value_selector:
+          - '1715100000003'
+          - text
+          variable: assessment_report
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

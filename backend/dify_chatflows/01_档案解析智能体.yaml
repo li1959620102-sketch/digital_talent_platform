@@ -1,0 +1,226 @@
+app:
+  description: 上传简历文本，自动解析姓名/学历/公司/职位/技能，生成人才标签和能力画像
+  icon: 📄
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: 档案解析智能体
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/tongyi:0.2.7@9587f91307469366cc92b449277c289655403abaab33c2303e3069a02c868ae6
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: start
+        targetType: http-request
+      id: 1715000000001-source-1715000000002-target
+      source: '1715000000001'
+      sourceHandle: source
+      target: '1715000000002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: http-request
+        targetType: llm
+      id: 1715000000002-source-1715000000003-target
+      source: '1715000000002'
+      sourceHandle: source
+      target: '1715000000003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        iteration_id: null
+        loop_id: null
+        sourceType: llm
+        targetType: end
+      id: 1715000000003-source-1715000000004-target
+      source: '1715000000003'
+      sourceHandle: source
+      target: '1715000000004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - id: '1715000000001'
+      position:
+        x: 80
+        y: 240
+      positionAbsolute:
+        x: 80
+        y: 240
+      height: 90
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 简历文本
+          max_length: 8000
+          required: true
+          type: paragraph
+          variable: resume_text
+        - label: 文件名
+          max_length: 128
+          required: false
+          type: text-input
+          variable: file_name
+    - id: '1715000000002'
+      position:
+        x: 380
+        y: 240
+      positionAbsolute:
+        x: 380
+        y: 240
+      height: 165
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        authorization:
+          config:
+            api_key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsImV4cCI6MTgxOTc5NjY3NCwiaWF0IjoxNzg4MjYwNjc0LCJ0eXBlIjoiYWNjZXNzIn0.JwBhVWuEr4FU49vHBIFa6dV4a8JuW6jOJ9iz3Denw2I
+            type: bearer
+          type: api-key
+        body:
+          data:
+          - type: text
+            value: '{"resume_text": "{{#1715000000001.resume_text#}}", "file_name":
+              "{{#1715000000001.file_name#}}"}'
+          type: json
+        desc: POST 简历文本 → /api/v1/agents/parse-resume
+        headers: ''
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        title: 调用后端简历解析
+        type: http-request
+        url: http://host.docker.internal:8003/api/v1/agents/parse-resume
+        variables: []
+    - id: '1715000000003'
+      position:
+        x: 680
+        y: 240
+      positionAbsolute:
+        x: 680
+        y: 240
+      height: 87
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        selected: false
+        title: 生成人才画像报告
+        type: llm
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: qwen3.7-max
+          provider: langgenius/tongyi/tongyi
+        prompt_template:
+        - id: p-1715000000003-sys
+          role: system
+          text: '你是人才平台AI助手。基于后端解析结果生成结构化人才画像报告。
+
+
+            要求：
+
+            1. Markdown格式
+
+            2. 包含：姓名/学历/公司/职位/技能/经验/标签
+
+            3. 突出关键能力，给出岗位匹配方向建议'
+        - id: p-1715000000003-user
+          role: user
+          text: '后端解析结果：
+
+            {{#1715000000002.body#}}
+
+
+            请生成人才画像报告。'
+        vision:
+          enabled: false
+    - id: '1715000000004'
+      position:
+        x: 980
+        y: 240
+      positionAbsolute:
+        x: 980
+        y: 240
+      height: 88
+      width: 242
+      zIndex: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      data:
+        desc: ''
+        selected: false
+        title: 输出-resume_report
+        type: end
+        outputs:
+        - value_selector:
+          - '1715000000003'
+          - text
+          variable: resume_report
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

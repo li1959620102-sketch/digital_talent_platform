@@ -1,0 +1,71 @@
+<Slide notes={`这一页回答一个评委最关心的问题：十三项 P0 功能，你们是怎么证明"完成了"的？
+
+我们的原则是，一个模块"完成"不等于代码写完，而是十项全齐——代码、数据库、API、前端、权限、日志、测试、异常处理、部署、验收证据，缺一不可。
+
+左边我举四个代表性功能，说明它们的技术落地：人才档案是 AI 简历解析加智能标签加向量检索；岗位匹配是硬条件加向量加 LLM 精排；数据决策是 NL2SQL 加趋势结构异常研判；RAG 问答是多路召回加重排。
+
+右边是完整的证据链：8 条 API 路由、53 个端点无占位；78 个测试全绿；Dify 5 智能体端到端 5/5；389 个人才和 5 个岗位已向量入库 Milvus；真实 MySQL 11 步全链路演示全通过。
+
+我要强调的是，这些都不是纸面数字，都是有实测日志和证据文件的。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>03 · 核心能力</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>13 项 P0 功能，十项验收标准全齐</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左：功能技术落地 */}
+      <Box style={{ flex: 5, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>代表性功能 · 技术落地</Text>
+        <Box style={{ flexDirection: 'column', gap: 12 }}>
+          {[
+            ['人才智能档案', 'AI 简历解析 → 智能标签 → 人才画像 → 语义检索'],
+            ['岗位人才匹配', '硬条件过滤 + Milvus 向量 + LLM 精排'],
+            ['自然语言决策', 'NL2SQL + 趋势/结构/异常自动研判'],
+            ['RAG 知识问答', 'BM25+向量多路召回 + 重排 + 来源追溯'],
+          ].map((f, idx) => (
+            <Box key={idx} style={{ padding: '14 18', background: '#FFFFFF', borderRadius: 4, border: '1px solid #E7E6E6', borderLeft: '3px solid #061F32' }}>
+              <Text style={{ fontSize: 19, color: '#061F32', fontWeight: 'bold' }}>{f[0]}</Text>
+              <Text style={{ fontSize: 16, color: '#44546A', marginTop: 4 }}>{f[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* 右：验收证据 */}
+      <Box style={{ flex: 5, flexDirection: 'column', background: 'rgba(6,31,50,0.04)', borderRadius: 6, padding: 20 }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>验收证据链 · 十项全齐</Text>
+        <Box style={{ flexDirection: 'column', gap: 10 }}>
+          {[
+            ['8 条路由 / 53 端点', '无 pass 占位，全 API 可用'],
+            ['78 测试全绿', '45 单元 + 28 集成 + 5 Dify 联调'],
+            ['Dify 端到端 5/5', '5 智能体 Workflow 全通过'],
+            ['389 人才 + 5 岗位', '已向量入库 Milvus'],
+            ['11 步全链路', '真实 MySQL 演示全 200'],
+          ].map((e, idx) => (
+            <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Box style={{ width: 20, height: 20, borderRadius: 10, background: '#08A6F6', justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: '#FFFFFF', fontWeight: 'bold' }}>✓</Text>
+              </Box>
+              <Text style={{ fontSize: 18, color: '#061F32', fontWeight: 'bold' }}>{e[0]}</Text>
+              <Text style={{ fontSize: 15, color: '#808080', flex: 1 }}>{e[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+        <Box style={{ marginTop: 'auto', paddingTop: 14 }}>
+          <Text style={{ fontSize: 15, color: '#44546A', fontStyle: 'italic' }}>
+            模块完成 = 代码+DB+API+前端+权限+日志+测试+异常+部署+证据，全齐才算完成。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：PROJECT_PROGRESS.md · 红线原则 / 已验证工作</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>12 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

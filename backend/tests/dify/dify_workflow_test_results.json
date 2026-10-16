@@ -1,0 +1,61 @@
+{
+  "results": [
+    {
+      "name": "档案解析",
+      "status": 400,
+      "elapsed_ms": 2071.9,
+      "passed": false,
+      "body_preview": "{\"detail\":\"file_path 必填\"}",
+      "response_keys": [
+        "detail"
+      ]
+    },
+    {
+      "name": "测评分析",
+      "status": 400,
+      "elapsed_ms": 2046.5,
+      "passed": false,
+      "body_preview": "{\"detail\":\"result_id 必填\"}",
+      "response_keys": [
+        "detail"
+      ]
+    },
+    {
+      "name": "岗位匹配",
+      "status": 200,
+      "elapsed_ms": 2200.0,
+      "passed": true,
+      "body_preview": "{\"code\":200,\"message\":\"匹配完成\",\"data\":{\"success\":false,\"errors\":[\"岗位不存在\"]}}",
+      "response_keys": [
+        "code",
+        "message",
+        "data"
+      ]
+    },
+    {
+      "name": "培训赋能",
+      "status": 200,
+      "elapsed_ms": 2118.1,
+      "passed": true,
+      "body_preview": "{\"code\":200,\"message\":\"培训推荐完成\",\"data\":{\"success\":true,\"talent_id\":1,\"position_id\":null,\"capability_profile\":{},\"gaps\":[],\"recommended_courses\":[],\"learning_path\":[],\"suggestions\":\"基于能力缺口匹配课程，按顺序完成学习路径并在末节点参加综合考核。建议关注短板维度，重点突破，争取在下一轮测评中达到目标分数。\",\"errors\":[]}}",
+      "response_keys": [
+        "code",
+        "message",
+        "data"
+      ]
+    },
+    {
+      "name": "数据决策",
+      "status": 200,
+      "elapsed_ms": 7631.7,
+      "passed": true,
+      "body_preview": "{\"code\":200,\"message\":\"分析完成\",\"data\":{\"total_talents\":389,\"by_status\":{\"reserve\":389},\"by_education\":{\"本科\":384,\"硕士\":5},\"chart\":{\"type\":\"pie\",\"title\":\"人才学历结构\",\"data\":[{\"name\":\"本科\",\"value\":384},{\"name\":\"硕士\",\"value\":5}]},\"success\":true,\"suggestions\":\"建议补充储备人才、加强培训滞后人员赋能、关注关键岗位继任计划。\",\"structure\":{\"total_talents\":389,\"by_status\":{\"reserve\":389},\"by_education\":{\"本科\":384,\"硕士\":5},\"chart\":{\"type\":\"pie\",\"title\":\"人才学历结构\",\"data\":[{\"name\":\"本科\",\"value\":384},{\"name\":\"硕士\",\"value\":5}]}},\"errors\":[]}}",
+      "response_keys": [
+        "code",
+        "message",
+        "data"
+      ]
+    }
+  ],
+  "all_passed": false
+}

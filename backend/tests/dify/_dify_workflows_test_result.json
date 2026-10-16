@@ -1,0 +1,63 @@
+{
+  "api_base": "http://127.0.0.1:80/v1",
+  "app_keys_configured": {
+    "resume": false,
+    "assessment": false,
+    "matching": false,
+    "training": false,
+    "data_decision": false
+  },
+  "summary": {
+    "passed": 0,
+    "total": 5
+  },
+  "results": [
+    {
+      "agent": "resume",
+      "name": "档案解析智能体",
+      "status": "skip_no_key",
+      "inputs": {
+        "resume_text": "\n张明，男，35岁，本科毕业，计算机科学与技术专业。\n联系方式：13800138000，邮箱：zhangming@example.com\n现任公司：字节跳动科技有限公司，职位：高级前端工程师，工作年限：10年。\n技能：React, TypeScript, Vue, Node.js, Webpack, 性能优化, 团队管理。\n项目经验：主导字节内部 ERP 系统前端重构，团队 8 人，性能提升 40%。\n",
+        "file_name": "zhangming_resume.txt"
+      },
+      "error": "App Key 未配置"
+    },
+    {
+      "agent": "assessment",
+      "name": "测评分析智能体",
+      "status": "skip_no_key",
+      "inputs": {
+        "talent_id": "1",
+        "assessment_result_id": "1"
+      },
+      "error": "App Key 未配置"
+    },
+    {
+      "agent": "matching",
+      "name": "岗位匹配智能体",
+      "status": "skip_no_key",
+      "inputs": {
+        "talent_id": "1"
+      },
+      "error": "App Key 未配置"
+    },
+    {
+      "agent": "training",
+      "name": "培训赋能智能体",
+      "status": "skip_no_key",
+      "inputs": {
+        "talent_id": "1"
+      },
+      "error": "App Key 未配置"
+    },
+    {
+      "agent": "data_decision",
+      "name": "数据决策智能体",
+      "status": "skip_no_key",
+      "inputs": {
+        "analysis_type": "structure"
+      },
+      "error": "App Key 未配置"
+    }
+  ]
+}

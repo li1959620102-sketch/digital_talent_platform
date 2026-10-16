@@ -1,0 +1,64 @@
+<Slide notes={`这一页讲项目的背景和建设目标。
+
+先说背景。传统人才管理面临三个痛点：一是人才档案分散、信息不统一；二是人才与岗位匹配靠人工经验，效率低、主观性强；三是培训和测评缺乏数据支撑，难以形成闭环。所以我们要建一个 AI 原生的人才智能平台，用大模型和向量检索把人才数据真正用起来。
+
+再说目标。预算 280 万，7 天开发上线加 4 天验收。这个周期意味着我们不能从零堆砌，必须走"成熟架构复用加三线程并行"的路径——后端、前端、测试三条线同时推进。
+
+验收的关键是 P0 的十三项能力，这些是我们承诺必须完成的，缺一项都过不了验收。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    {/* A 页眉 */}
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>01 · 项目概况</Text>
+    </Box>
+
+    {/* B 标题块 */}
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>从人才分散管理到 AI 原生智能闭环</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 28 }} />
+
+    {/* C 内容区：左标题+右内容（非对称） */}
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 48 }}>
+      {/* 左侧：大数字锚点 */}
+      <Box style={{ width: 320, flexDirection: 'column', justifyContent: 'center' }}>
+        <Box style={{ flexDirection: 'column', marginBottom: 36 }}>
+          <Text style={{ fontSize: 88, color: '#08A6F6', fontWeight: 'bold', lineHeight: 1 }}>280<span style={{ fontSize: 28 }}> 万</span></Text>
+          <Text style={{ fontSize: 18, color: '#44546A', marginTop: 10 }}>项目预算 · 企业级投入</Text>
+        </Box>
+        <Box style={{ flexDirection: 'column', marginBottom: 36 }}>
+          <Text style={{ fontSize: 88, color: '#061F32', fontWeight: 'bold', lineHeight: 1 }}>7<span style={{ fontSize: 28 }}> 天</span></Text>
+          <Text style={{ fontSize: 18, color: '#44546A', marginTop: 10 }}>开发上线 + 4 日验收</Text>
+        </Box>
+        <Box style={{ flexDirection: 'column' }}>
+          <Text style={{ fontSize: 88, color: '#061F32', fontWeight: 'bold', lineHeight: 1 }}>13<span style={{ fontSize: 28 }}> 项</span></Text>
+          <Text style={{ fontSize: 18, color: '#44546A', marginTop: 10 }}>P0 核心能力（首次验收必须）</Text>
+        </Box>
+      </Box>
+
+      {/* 右侧：背景 + 目标 */}
+      <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', gap: 28 }}>
+        <Box style={{ padding: '20 24', background: 'rgba(6,31,50,0.04)', borderRadius: 6, borderLeft: '3px solid #08A6F6' }}>
+          <Text style={{ fontSize: 24, color: '#061F32', fontWeight: 'bold', marginBottom: 12 }}>建设背景 · 三大痛点</Text>
+          <Text style={{ fontSize: 20, color: '#44546A', lineHeight: 1.55 }}>
+            ① 人才档案分散、信息孤岛，缺乏统一画像；<br />
+            ② 人岗匹配依赖人工经验，效率低、主观性强；<br />
+            ③ 测评培训缺乏数据闭环，难以量化人才价值。
+          </Text>
+        </Box>
+        <Box style={{ padding: '20 24', background: 'rgba(6,31,50,0.04)', borderRadius: 6, borderLeft: '3px solid #061F32' }}>
+          <Text style={{ fontSize: 24, color: '#061F32', fontWeight: 'bold', marginBottom: 12 }}>建设目标 · 一站式闭环</Text>
+          <Text style={{ fontSize: 20, color: '#44546A', lineHeight: 1.55 }}>
+            以 AI 为核心，打通「档案 → 测评 → 匹配 → 培训 → 决策」全链路，<br />
+            实现人才数据的语义化检索、智能化匹配与可视化决策。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    {/* D 页脚 */}
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：项目招标技术需求 · P0 功能清单</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>04 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

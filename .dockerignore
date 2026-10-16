@@ -1,0 +1,20 @@
+# 避免将本地密钥、依赖缓存和大体积资料发送到前端镜像构建上下文
+.git/
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+backend/logs/
+backend/media/
+backend/vanna_chroma/
+frontend/node_modules/
+frontend/dist/
+*.rar
+*.zip
+*.log
+*.tmp
+*.bak

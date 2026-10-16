@@ -1,0 +1,33 @@
+<Slide notes={`最后，用一句话收束。
+
+我们交付的，是一个数据驱动的人才智能平台，从人才档案到智能决策的一站式闭环。七十八个测试全绿，关键指标实测达标，边界清晰不虚标。
+
+以上就是我的完整汇报，谢谢各位评委，下面请大家提问。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 60%, #0E3A5C 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    {/* 背景几何 */}
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0, opacity: 0.15 }}>
+      <g fill='none' stroke='#08A6F6' strokeWidth='1.5'>
+        <circle cx='640' cy='330' r='180' />
+        <circle cx='640' cy='330' r='260' opacity='0.5' />
+        <circle cx='640' cy='330' r='340' opacity='0.25' />
+      </g>
+      <g fill='#08A6F6'>
+        <circle cx='640' cy='330' r='6' />
+      </g>
+    </svg>
+
+    {/* 中心内容 */}
+    <Box style={{ position: 'relative', zIndex: 1, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 4, marginBottom: 28 }}>THANK YOU</Text>
+      <Text style={{ fontSize: 52, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.35, textAlign: 'center' }}>数据驱动的人才智能<br />从档案到决策的一站式闭环</Text>
+      <Box style={{ width: 80, height: 3, background: '#08A6F6', marginTop: 36 }} />
+      <Text style={{ fontSize: 26, color: '#99BDED', marginTop: 36, letterSpacing: 2 }}>谢谢各位评委 · 敬请提问</Text>
+    </Box>
+
+    {/* 落款 */}
+    <Box style={{ position: 'absolute', left: 60, bottom: 60 }}>
+      <Text style={{ fontSize: 15, color: '#808080' }}>AI数字化人才平台 · 项目评审答辩</Text>
+      <Text style={{ fontSize: 14, color: '#808080', marginTop: 4 }}>汇报人：Hayson · 2026 年 9 月</Text>
+    </Box>
+  </Box>
+</Slide>

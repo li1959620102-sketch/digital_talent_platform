@@ -1,0 +1,18 @@
+<Slide notes={`我们先进入第一章，项目概况。
+
+这一章回答两个问题：第一，这个平台是为什么场景、解决什么痛点而建的；第二，我们的建设目标是什么，验收的标准线在哪。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    {/* 巨字编号 */}
+    <Text style={{ position: 'absolute', left: 40, top: 120, fontSize: 260, fontWeight: 'bold', color: 'rgba(255,255,255,0.08)', lineHeight: 1 }}>01</Text>
+
+    {/* 右侧章节标题 */}
+    <Box style={{ position: 'absolute', left: 320, top: 260 }}>
+      <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 3, marginBottom: 20 }}>CHAPTER 01</Text>
+      <Text style={{ fontSize: 52, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.2 }}>项目概况</Text>
+      <Text style={{ fontSize: 24, color: '#99BDED', marginTop: 20, letterSpacing: 1 }}>背景与建设目标 · 项目背景与建设目标</Text>
+    </Box>
+
+    {/* 底部装饰线 */}
+    <Box style={{ position: 'absolute', left: 320, bottom: 120, width: 80, height: 3, background: '#08A6F6' }} />
+  </Box>
+</Slide>

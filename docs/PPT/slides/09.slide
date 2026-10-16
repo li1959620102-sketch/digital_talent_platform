@@ -1,0 +1,66 @@
+<Slide notes={`这一页讲技术栈和 AI 智能层的实现细节。
+
+左边是完整技术栈。后端用 FastAPI 加 SQLAlchemy 2.0 和 Pydantic，AI 层用 LangChain 做编排、LangGraph 做多智能体状态机、Dify 做应用中台、Vanna 做 NL2SQL、SiliconFlow 提供大模型。前端是 React 加 TypeScript 加 Vite 加 AntD。部署走 Docker 加 Nginx。
+
+右边重点讲 LLM 三层降级策略，这是我们在工程上做的一个关键设计。我们的 LLM 工厂支持三层：第一层 Ollama 本地模型，数据不出域，符合个人信息保护法；第二层 SiliconFlow，用于简历解析和 NL2SQL，响应时间从本地的一百多秒降到二点三秒，提升五十六倍；第三层阿里百炼，供 Dify 中台内部使用。
+
+关键点是：三层是"策略可切换"的，验收时如果需要合规云 API，零改代码就能切。这样既保证了灵活，又保证了数据安全。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>02 · 总体设计</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>真实技术栈接线，LLM 三层降级策略保障合规</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左：技术栈 */}
+      <Box style={{ flex: 5, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>全栈技术选型</Text>
+        <Box style={{ flexDirection: 'column', gap: 14 }}>
+          {[
+            ['后端', 'FastAPI · SQLAlchemy 2.0 · Pydantic'],
+            ['AI 编排', 'LangChain · LangGraph · Vanna.ai'],
+            ['AI 中台', 'Dify（5 个智能体 Workflow）'],
+            ['大模型', 'SiliconFlow DeepSeek-V4-Flash'],
+            ['前端', 'React · TypeScript · Vite · AntD'],
+            ['部署', 'Docker · Nginx · 国产化兼容'],
+          ].map((t, idx) => (
+            <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, color: '#061F32', fontWeight: 'bold', width: 110 }}>{t[0]}</Text>
+              <Text style={{ fontSize: 18, color: '#44546A' }}>{t[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* 右：LLM 三层降级 */}
+      <Box style={{ flex: 5, flexDirection: 'column', background: 'rgba(6,31,50,0.04)', borderRadius: 6, padding: 20 }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>LLM 三层降级策略</Text>
+        <Box style={{ flexDirection: 'column', gap: 12 }}>
+          {[
+            ['L1 · Ollama 本地', 'qwen3 + bge-m3，数据不出域，符合个保法', '#061F32'],
+            ['L2 · SiliconFlow', '简历解析 + NL2SQL，响应 2.3s（提速 56 倍）', '#08A6F6'],
+            ['L3 · 阿里百炼', 'Dify 中台 Workflow 内部 LLM', '#0E3A5C'],
+          ].map((llm, idx) => (
+            <Box key={idx} style={{ padding: '14 16', background: '#FFFFFF', borderRadius: 4, borderLeft: `3px solid ${llm[2]}` }}>
+              <Text style={{ fontSize: 19, color: '#061F32', fontWeight: 'bold' }}>{llm[0]}</Text>
+              <Text style={{ fontSize: 16, color: '#44546A', marginTop: 4 }}>{llm[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+        <Box style={{ marginTop: 'auto', paddingTop: 14 }}>
+          <Text style={{ fontSize: 16, color: '#44546A', fontStyle: 'italic', lineHeight: 1.5 }}>
+            「策略可切换」——验收需合规云 API 时零改代码即可切换。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：README.md · 技术栈 / config.py LLM_STRATEGY</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>09 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

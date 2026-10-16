@@ -1,0 +1,13 @@
+<Slide notes={`进入第二章，总体设计。
+
+这一章我要讲清楚平台的技术底座——六层架构和四库混合存储。这是整个平台能支撑 AI 能力的根基。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    <Text style={{ position: 'absolute', left: 40, top: 120, fontSize: 260, fontWeight: 'bold', color: 'rgba(255,255,255,0.08)', lineHeight: 1 }}>02</Text>
+    <Box style={{ position: 'absolute', left: 320, top: 260 }}>
+      <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 3, marginBottom: 20 }}>CHAPTER 02</Text>
+      <Text style={{ fontSize: 52, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.2 }}>总体设计</Text>
+      <Text style={{ fontSize: 24, color: '#99BDED', marginTop: 20, letterSpacing: 1 }}>架构与技术选型 · 六层架构与四库混合存储</Text>
+    </Box>
+    <Box style={{ position: 'absolute', left: 320, bottom: 120, width: 80, height: 3, background: '#08A6F6' }} />
+  </Box>
+</Slide>

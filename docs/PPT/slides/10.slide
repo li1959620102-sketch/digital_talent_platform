@@ -1,0 +1,13 @@
+<Slide notes={`进入第三章，核心能力。这是本次汇报的重点章节。
+
+我会重点讲五大智能体是怎么协同工作的，以及十三项 P0 功能背后真实的技术实现。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    <Text style={{ position: 'absolute', left: 40, top: 120, fontSize: 260, fontWeight: 'bold', color: 'rgba(255,255,255,0.08)', lineHeight: 1 }}>03</Text>
+    <Box style={{ position: 'absolute', left: 320, top: 260 }}>
+      <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 3, marginBottom: 20 }}>CHAPTER 03</Text>
+      <Text style={{ fontSize: 52, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.2 }}>核心能力</Text>
+      <Text style={{ fontSize: 24, color: '#99BDED', marginTop: 20, letterSpacing: 1 }}>五大智能体与功能 · 多智能体协同的 AI 人才中枢</Text>
+    </Box>
+    <Box style={{ position: 'absolute', left: 320, bottom: 120, width: 80, height: 3, background: '#08A6F6' }} />
+  </Box>
+</Slide>

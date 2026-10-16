@@ -1,0 +1,79 @@
+<Slide notes={`各位评委老师好，我是本项目的技术负责人。今天由我代表项目组，向大家汇报"AI数字化人才平台"的建设成果。
+
+这个项目用 280 万元预算、7 天完成开发上线，4 天验收。我们交付的，是一个覆盖人才档案、智能测评、岗位匹配、培训赋能、数据决策五大业务闭环的 AI 原生平台。
+
+接下来我会用大约 15 分钟，从项目背景、总体架构、核心能力、质量验证、交付展望五个维度，把"我们做了什么、怎么做的、效果如何"讲清楚。`}>
+  <Box style={{ width: 1280, height: 720, background: 'linear-gradient(135deg, #061F32 0%, #0A2E4A 60%, #0E3A5C 100%)', padding: 60, position: 'relative', overflow: 'hidden' }}>
+    {/* 背景科技几何网格 */}
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0, opacity: 0.18 }}>
+      <g stroke='#08A6F6' strokeWidth='1'>
+        <line x1='760' y1='0' x2='760' y2='720' />
+        <line x1='1000' y1='0' x2='1000' y2='720' />
+        <line x1='0' y1='220' x2='1280' y2='220' />
+        <line x1='0' y1='440' x2='1280' y2='440' />
+      </g>
+      <g fill='none' stroke='#08A6F6' strokeWidth='1.5'>
+        <circle cx='1040' cy='150' r='70' />
+        <circle cx='1040' cy='150' r='110' opacity='0.5' />
+        <circle cx='1040' cy='150' r='150' opacity='0.3' />
+      </g>
+      <g fill='#08A6F6'>
+        <circle cx='760' cy='220' r='5' />
+        <circle cx='1000' cy='220' r='5' />
+        <circle cx='760' cy='440' r='5' />
+        <circle cx='1000' cy='440' r='5' />
+        <circle cx='1040' cy='150' r='6' />
+      </g>
+      <g stroke='#99BDED' strokeWidth='1' opacity='0.6'>
+        <line x1='1040' y1='40' x2='1040' y2='90' />
+        <line x1='1190' y1='150' x2='1240' y2='150' />
+        <line x1='1040' y1='300' x2='1040' y2='350' />
+      </g>
+    </svg>
+
+    {/* 左上品牌标 */}
+    <Box style={{ position: 'absolute', top: 60, left: 60, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <svg width={28} height={28} viewBox='0 0 28 28'>
+        <rect x='0' y='0' width='28' height='28' rx='4' fill='#08A6F6' />
+        <path d='M8 20 L14 6 L20 20 M10 15 L18 15' stroke='#061F32' strokeWidth='2' fill='none' strokeLinecap='round' />
+      </svg>
+      <Text style={{ fontSize: 18, color: '#99BDED', letterSpacing: 2 }}>DIGITAL TALENT PLATFORM</Text>
+    </Box>
+
+    {/* 主标题区 */}
+    <Box style={{ position: 'absolute', left: 60, top: 200, width: 620 }}>
+      <Text style={{ fontSize: 22, color: '#08A6F6', fontWeight: 'bold', letterSpacing: 3, marginBottom: 24 }}>项目评审答辩 · 方案汇报</Text>
+      <Text style={{ fontSize: 72, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1.15, letterSpacing: 1 }}>AI数字化人才平台</Text>
+      <Text style={{ fontSize: 34, color: '#99BDED', fontWeight: 'bold', lineHeight: 1.3, marginTop: 20 }}>企业级 AI 原生人才智能平台</Text>
+    </Box>
+
+    {/* 底部关键信息 */}
+    <Box style={{ position: 'absolute', left: 60, bottom: 70, flexDirection: 'row', gap: 48 }}>
+      <Box style={{ flexDirection: 'column' }}>
+        <Text style={{ fontSize: 34, color: '#FFFFFF', fontWeight: 'bold' }}>280<span style={{ fontSize: 18, color: '#99BDED' }}> 万</span></Text>
+        <Text style={{ fontSize: 15, color: '#808080', marginTop: 6 }}>项目预算</Text>
+      </Box>
+      <Box style={{ width: 1, height: 52, background: 'rgba(255,255,255,0.2)' }} />
+      <Box style={{ flexDirection: 'column' }}>
+        <Text style={{ fontSize: 34, color: '#FFFFFF', fontWeight: 'bold' }}>7<span style={{ fontSize: 18, color: '#99BDED' }}> 天</span></Text>
+        <Text style={{ fontSize: 15, color: '#808080', marginTop: 6 }}>开发上线</Text>
+      </Box>
+      <Box style={{ width: 1, height: 52, background: 'rgba(255,255,255,0.2)' }} />
+      <Box style={{ flexDirection: 'column' }}>
+        <Text style={{ fontSize: 34, color: '#FFFFFF', fontWeight: 'bold' }}>13<span style={{ fontSize: 18, color: '#99BDED' }}> 项</span></Text>
+        <Text style={{ fontSize: 15, color: '#808080', marginTop: 6 }}>P0 核心能力</Text>
+      </Box>
+      <Box style={{ width: 1, height: 52, background: 'rgba(255,255,255,0.2)' }} />
+      <Box style={{ flexDirection: 'column' }}>
+        <Text style={{ fontSize: 34, color: '#FFFFFF', fontWeight: 'bold' }}>100<span style={{ fontSize: 18, color: '#99BDED' }}> %</span></Text>
+        <Text style={{ fontSize: 15, color: '#808080', marginTop: 6 }}>P0+P1 完成</Text>
+      </Box>
+    </Box>
+
+    {/* 底部右侧汇报信息 */}
+    <Box style={{ position: 'absolute', right: 60, bottom: 70, alignItems: 'flex-end' }}>
+      <Text style={{ fontSize: 16, color: '#99BDED', marginBottom: 6 }}>汇报人：Hayson · 项目负责人</Text>
+      <Text style={{ fontSize: 15, color: '#808080' }}>2026 年 9 月</Text>
+    </Box>
+  </Box>
+</Slide>

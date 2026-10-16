@@ -1,0 +1,82 @@
+<Slide notes={`这一页介绍我们的团队分工。
+
+我们是一个 6 人的精干团队，采用"专人专岗、前后端与 AI 并行"的组织方式，在 7 天周期内完成这么大功能面的交付，靠的就是职责清晰、三线并行。
+
+具体分工：徐小宇担任产品经理，负责需求分析和产品设计，把控平台的功能边界和用户体验；刘仲篪担任项目经理，统筹进度、风险与资源，保障 7 天交付节奏；曹思怡负责前端开发，用 React 和 TypeScript 搭建 10 个页面；黄海森负责后端开发，用 FastAPI 实现五大智能体和 8 组路由；李辉负责 AI 与算法，主攻 LangGraph、RAG 向量检索和 NL2SQL；张军负责测试与运维，落地 78 项测试和部署环境。
+
+六个人各司其职、无缝衔接，这正是我们能在 7 天内完成交付的组织保障。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    {/* A 页眉 */}
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>01 · 项目概况</Text>
+    </Box>
+
+    {/* B 标题块 */}
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>6 人精干团队 · 专人专岗 · 三线并行</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    {/* C 内容区：非对称双栏（左 6 人卡片 + 右职责矩阵） */}
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左侧：6 人卡片网格 */}
+      <Box style={{ width: 560, flexDirection: 'column', gap: 14 }}>
+        {[
+          { name: '徐小宇', role: '产品经理', duty: '需求分析 · 产品设计 · 功能边界把控', tag: '#08A6F6' },
+          { name: '刘仲篪', role: '项目经理', duty: '进度统筹 · 风险控制 · 资源协调', tag: '#061F32' },
+          { name: '曹思怡', role: '前端开发', duty: 'React + TypeScript · 10 个页面构建', tag: '#061F32' },
+          { name: '黄海森', role: '后端开发', duty: 'FastAPI · 五大 Agent · 8 组路由', tag: '#061F32' },
+          { name: '李辉', role: 'AI / 算法', duty: 'LangGraph · RAG 向量检索 · NL2SQL', tag: '#061F32' },
+          { name: '张军', role: '测试 / 运维', duty: '78 项测试 · 部署环境与上线保障', tag: '#061F32' },
+        ].map((m, idx) => (
+          <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', background: 'rgba(6,31,50,0.04)', borderRadius: 6, padding: '12 18' }}>
+            <Box style={{ width: 46, height: 46, borderRadius: 23, background: m.tag, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+              <Text style={{ fontSize: 20, color: '#FFFFFF', fontWeight: 'bold' }}>{m.name.slice(0, 1)}</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+              <Box style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginRight: 12 }}>{m.name}</Text>
+                <Text style={{ fontSize: 15, color: '#08A6F6', fontWeight: 'bold', background: 'rgba(8,166,246,0.10)', borderRadius: 4, padding: '2 8' }}>{m.role}</Text>
+              </Box>
+              <Text style={{ fontSize: 17, color: '#44546A', marginTop: 4 }}>{m.duty}</Text>
+            </Box>
+          </Box>
+        ))}
+      </Box>
+
+      {/* 右侧：岗位职责矩阵 + 协作说明 */}
+      <Box style={{ flex: 1, flexDirection: 'column', gap: 20, justifyContent: 'center' }}>
+        <Box style={{ padding: '20 24', background: 'rgba(6,31,50,0.04)', borderRadius: 6, borderLeft: '3px solid #08A6F6' }}>
+          <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>分工逻辑 · 三线并行</Text>
+          <Box style={{ flexDirection: 'row', gap: 16 }}>
+            <Box style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, color: '#061F32', fontWeight: 'bold' }}>产品线</Text>
+              <Text style={{ fontSize: 17, color: '#44546A', marginTop: 4, lineHeight: 1.5 }}>需求分析、产品设计、功能边界</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, color: '#061F32', fontWeight: 'bold' }}>研发线</Text>
+              <Text style={{ fontSize: 17, color: '#44546A', marginTop: 4, lineHeight: 1.5 }}>前端 + 后端 + AI 三条研发子线</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, color: '#061F32', fontWeight: 'bold' }}>质量线</Text>
+              <Text style={{ fontSize: 17, color: '#44546A', marginTop: 4, lineHeight: 1.5 }}>测试验证、部署运维、上线保障</Text>
+            </Box>
+          </Box>
+        </Box>
+        <Box style={{ padding: '20 24', background: 'rgba(6,31,50,0.04)', borderRadius: 6, borderLeft: '3px solid #061F32' }}>
+          <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 12 }}>组织保障</Text>
+          <Text style={{ fontSize: 19, color: '#44546A', lineHeight: 1.6 }}>
+            职责清晰、专人专岗，产品—研发—质量三线并行，<br />
+            以项目经理为枢纽协同推进，确保 7 天交付节奏。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    {/* D 页脚 */}
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：项目团队分工 · 6 人配置</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>06 / 20</Text>
+    </Box>
+  </Box>
+</Slide>

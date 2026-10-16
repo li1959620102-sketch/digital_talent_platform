@@ -1,0 +1,67 @@
+<Slide notes={`这一页把几个关键的实测亮点集中呈现一下。
+
+第一，简历解析精度，用 Golden 测试集实测，十份简历十个全对，百分之百。第二，岗位匹配，从原来的启发式打分，改成了真实的 Milvus 向量余弦检索，底层百分之百生效。第三，问答延迟，从十八秒优化到五秒。第四，Dify 五个智能体端到端全部通过。
+
+还有一个我特别想强调的工程亮点，就是日志系统的多进程修复。在 Windows 热重载场景下，原来的日志轮转会报错，我们定位到是孤儿 worker 进程持有文件句柄导致的，从代码层根治了这个问题，这是真实生产环境才会暴露的 bug，SQLite 测试根本发现不了。
+
+这些亮点共同说明一点：我们不是"跑通了就行"，而是把真实环境下的坑都填平了。`}>
+  <Box style={{ width: 1280, height: 720, background: '#FFFFFF', padding: '44 60 60 60' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 0 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>03 · 核心能力</Text>
+    </Box>
+    <Box style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 34, color: '#061F32', fontWeight: 'bold', lineHeight: 1.3 }}>关键亮点：真实环境下的工程攻坚</Text>
+    </Box>
+    <Box style={{ width: 1160, height: 1, background: '#061F32', marginBottom: 24 }} />
+
+    <Box style={{ flexDirection: 'row', flex: 1, gap: 40 }}>
+      {/* 左：实测数据亮点 */}
+      <Box style={{ flex: 5, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>实测数据亮点</Text>
+        <Box style={{ flexDirection: 'column', gap: 14 }}>
+          {[
+            ['100%', '简历解析精度（Golden 10/10）'],
+            ['100%', '匹配向量 Milvus 底层生效（5/5）'],
+            ['5s', '问答延迟（18s → 5s 调优）'],
+            ['5/5', 'Dify 智能体端到端通过'],
+          ].map((d, idx) => (
+            <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <Text style={{ fontSize: 40, color: '#08A6F6', fontWeight: 'bold', width: 110 }}>{d[0]}</Text>
+              <Text style={{ fontSize: 18, color: '#44546A', flex: 1 }}>{d[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* 右：工程攻坚 */}
+      <Box style={{ flex: 5, flexDirection: 'column', background: 'rgba(6,31,50,0.04)', borderRadius: 6, padding: 20 }}>
+        <Text style={{ fontSize: 22, color: '#061F32', fontWeight: 'bold', marginBottom: 14 }}>工程攻坚 · 5 个生产级 Bug</Text>
+        <Box style={{ flexDirection: 'column', gap: 12 }}>
+          {[
+            ['枚举存名不存值', '14 枚举列加 values_callable 修复'],
+            ['JWT sub 类型', '强制字符串，修复全接口 401'],
+            ['current_user 类型', 'dict → ORM 对象统一'],
+            ['组织表空 FK 失败', '种子默认组织总部'],
+            ['日志轮转互锁', '多进程安全 Handler 根治 WinError32'],
+          ].map((b, idx) => (
+            <Box key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Text style={{ fontSize: 20, color: '#08A6F6', fontWeight: 'bold', width: 24 }}>{idx + 1}</Text>
+              <Text style={{ fontSize: 17, color: '#061F32', fontWeight: 'bold', width: 150 }}>{b[0]}</Text>
+              <Text style={{ fontSize: 15, color: '#808080', flex: 1 }}>{b[1]}</Text>
+            </Box>
+          ))}
+        </Box>
+        <Box style={{ marginTop: 'auto', paddingTop: 14 }}>
+          <Text style={{ fontSize: 15, color: '#44546A', fontStyle: 'italic', lineHeight: 1.5 }}>
+            这些是真实环境才暴露的 Bug，SQLite 测试发现不了——我们用真实库联调填平了它们。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+      <Text style={{ fontSize: 14, color: '#808080' }}>来源：PROJECT_PROGRESS.md · Day7 生产级 Bug 修复</Text>
+      <Text style={{ fontSize: 14, color: '#808080' }}>14 / 20</Text>
+    </Box>
+  </Box>
+</Slide>
