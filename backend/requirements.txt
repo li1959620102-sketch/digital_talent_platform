@@ -70,6 +70,11 @@ ujson==5.10.0
 # Vanna NL2SQL
 vanna==0.7.4
 chromadb==0.5.20
+# app/services/vanna_adapter.py 直接 import sqlparse 做 SQL 解析与只读白名单校验。
+# 此前仅靠 vanna 传递安装；SQL 安全层依赖它，显式声明避免上游变更后静默失效。
+sqlparse==0.6.0
+# starlette 由 fastapi 传递安装（当前 0.38.6），app/core/middleware.py 与 auth_service.py
+# 直接 import。此处不重复钉版本，以免与 fastapi 自身的 starlette 版本约束冲突。
 # Chroma 0.5.x 对 OpenTelemetry 只给宽范围，显式锁定已验证的兼容组合，
 # 避免生产构建每次回溯数十个版本且产生不可复现依赖树。
 opentelemetry-api==1.27.0
