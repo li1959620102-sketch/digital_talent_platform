@@ -1,0 +1,48 @@
+# =====================================================================
+# 生产部署覆盖文件（全栈上云 / 单台服务器）
+#
+# 与本地调试用的 docker-compose.override.yml 互斥：
+#   · docker-compose.override.yml 面向「本机 http 调试」——开 DEBUG、端口错开、
+#     绑定本地 media 目录、把镜像源钉成国内镜像；这些行为都不该进生产。
+#   · 本文件面向「服务器生产部署」——只做一件事：把构建期的依赖源做成可配置，
+#     让国内服务器也能稳定构建；其余一律沿用 docker-compose.yml 的生产默认值。
+#
+# 用法（显式指定 -f 后，docker compose 不会自动加载 override，正好避开本地调试配置）：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# 注意：两个文件都放在项目根目录，且 -f 顺序必须是「先 docker-compose.yml、后本文件」。
+#       这样 project 目录 = 项目根目录，./backend 等相对路径才能正确解析。
+# =====================================================================
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        # 仅影响「构建期」拉取 Python 包，运行期行为不受影响。
+        # 国内服务器建议在 .env 里写：
+        #   PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        # 前端在网关镜像构建阶段用 npm 现装依赖并打包（.dockerignore 排除了 dist/），
+        # 国内服务器建议在 .env 里写：
+        #   NPM_REGISTRY=https://registry.npmmirror.com
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+
+    # ── HTTPS 启用说明（证书就位后再取消下面注释）──────────────────────────
+    # 1) 证书放到 docker/nginx/ssl/（fullchain.pem + privkey.pem）；
+    # 2) 按 docker/nginx/conf.d/https.conf.example 启用 443 server 块；
+    # 3) 取消下面 ports / volumes 的注释后重新 up -d。
+    #
+    # ports: !override
+    #   - "80:80"
+    #   - "443:443"
+    # volumes: !override
+    #   - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+    #   - ./docker/nginx/conf.d:/etc/nginx/conf.d
+    #   - ./docker/nginx/ssl:/etc/nginx/ssl:ro
