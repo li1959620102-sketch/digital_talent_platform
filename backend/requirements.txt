@@ -44,6 +44,11 @@ PyMuPDF==1.24.14
 pdfplumber==0.11.4
 pytesseract==0.3.13
 Pillow==11.0.0
+# Excel 历史数据迁移：app/services/migration_service.py 顶层 import openpyxl，
+# 用于 /api/v1/talents/import-file 的 xlsx 批量导入。此前未声明依赖，
+# 生产容器内缺失导致该接口直接 ModuleNotFoundError（2026-10-16 跑测试集时发现）。
+openpyxl==3.1.5
+et-xmlfile==2.0.0
 # 中文语义分词切片：app/designer/strategy/jieba_chunking_strategy.py 的
 # JiebaChunkingStrategy 在 lazy import jieba，缺失时 _chunk_text 静默降级为
 # 固定字符切片（切片质量下降且不报错）。2026-10-15 灌库时发现并补录。
