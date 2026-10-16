@@ -34,15 +34,13 @@ services:
         #   NPM_REGISTRY=https://registry.npmmirror.com
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
 
-    # ── HTTPS 启用说明（证书就位后再取消下面注释）──────────────────────────
-    # 1) 证书放到 docker/nginx/ssl/（fullchain.pem + privkey.pem）；
-    # 2) 按 docker/nginx/conf.d/https.conf.example 启用 443 server 块；
-    # 3) 取消下面 ports / volumes 的注释后重新 up -d。
-    #
-    # ports: !override
-    #   - "80:80"
-    #   - "443:443"
-    # volumes: !override
-    #   - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-    #   - ./docker/nginx/conf.d:/etc/nginx/conf.d
-    #   - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    # ── HTTPS（已启用形态）───────────────────────────────────────────────
+    # 全栈上云默认对外提供 443；80 仅保留 ACME 续期校验与跳转。
+    # 证书由 deploy/ 目录的 certbot 流程签发后放入 docker/nginx/ssl/。
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes: !override
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
