@@ -169,3 +169,6 @@ minio_data/
 !backend/media/
 backend/media/*
 !backend/media/knowledge/
+
+# 测试上传残留（test_api_integration 的 policy.txt 副本，SHA-256 = e1d303875035…）
+backend/media/knowledge/179215*.txt
