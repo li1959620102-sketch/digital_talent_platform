@@ -13,7 +13,7 @@ from app.agents.graph_runtime import compile_graph, invoke_graph
 from app.core.config import settings
 from app.core.llm_factory import get_agent_llm
 from app.core.run_async import run_async
-from app.utils.resume_parser import ResumeParser
+from app.utils.resume_parser import ResumeParser, extract_skills_by_rule
 from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,12 @@ def extract_info(state: AgentState) -> AgentState:
 
         talent = parsed.get("talent")
         if isinstance(talent, dict):
-            state["extracted_data"].update({k: v for k, v in talent.items() if v is not None})
+            # 只覆盖"有效值"：LLM 对某字段返回 null / "" / [] / {} 时保留规则基线结果，
+            # 避免空值把基线已抽到的字段抹掉（实测 1.7B 模型常把 skills 返回成空列表）。
+            state["extracted_data"].update({
+                k: v for k, v in talent.items()
+                if v is not None and v != "" and v != [] and v != {}
+            })
 
         tags = parsed.get("tags")
         if isinstance(tags, list):
@@ -118,6 +123,13 @@ def extract_info(state: AgentState) -> AgentState:
         portrait = parsed.get("portrait")
         if isinstance(portrait, dict):
             state["portrait"] = portrait
+
+        # 技能兜底：LLM 未给出技能时用规则词典从原文再抽一次。
+        # skills_certificates 是岗位匹配硬条件过滤的输入，为空会让候选人被整体筛掉。
+        if not state["extracted_data"].get("skills") and state.get("raw_text"):
+            fallback_skills = extract_skills_by_rule(state["raw_text"])
+            if fallback_skills:
+                state["extracted_data"]["skills"] = fallback_skills
     except Exception as e:
         state["errors"].append(f"信息提取失败: {e}")
     return state
