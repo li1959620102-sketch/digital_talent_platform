@@ -1,0 +1,6 @@
+# 换行符约定
+#
+# Shell 脚本必须使用 LF：若被检出为 CRLF，在 Linux 服务器上执行会报
+# "bad interpreter: /usr/bin/env bash^M"。部署脚本经 Git 检出 / 打包上传后
+# 都要能直接运行，故在此强制。
+*.sh text eol=lf
