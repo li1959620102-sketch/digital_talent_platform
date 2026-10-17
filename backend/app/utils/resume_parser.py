@@ -63,6 +63,143 @@ def extract_skills_by_rule(text: str, limit: int = 20) -> List[str]:
     return [hits[i] for i in sorted(hits)][:limit]
 
 
+# ==================== 解析结果规范化 ====================
+# 为什么要这一层：LLM 节点的输出**不能直接入库**。实测踩到的三个坑——
+#   1) 手机号：规则层正则能从"138-0013-8001"正确抽出 13800138001，但 LLM 层
+#      会原样返回带分隔符的字符串并覆盖规则层结果，入库成非法手机号；
+#   2) 学历：LLM 会返回"本科/硕士"这种非枚举值，调用方 if 判空后直接丢弃，
+#      导致明明有学历却存成 NULL；
+#   3) 工作年限：简历里大量使用中文数字（"五年后端研发经验"），LLM 识别不出就
+#      漏填或给出错值。
+# 这里的职责就是把不可控的 LLM 输出收敛成可直接入库的规范值。
+
+
+_CN_DIGITS = {
+    "零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+    "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+}
+
+# 学历等级：用于从一个包含多个学历的表述里取最高的那一个
+_EDU_RANK = {
+    "高中": 1, "中专": 1, "职高": 1,
+    "大专": 2, "专科": 2,
+    "本科": 3, "学士": 3,
+    "硕士": 4, "研究生": 4,
+    "博士": 5,
+}
+# 非枚举别名归一到 EducationLevel 的合法取值
+_EDU_CANON = {"专科": "大专", "学士": "本科", "中专": "高中",
+              "职高": "高中", "研究生": "硕士"}
+
+
+def _cn_to_int(s: str) -> Optional[int]:
+    """中文数字转整数，覆盖一到九十九（简历年限场景足够）。"""
+    if not s:
+        return None
+    if s == "十":
+        return 10
+    if "十" in s:
+        left, _, right = s.partition("十")
+        tens = _CN_DIGITS.get(left, 1) if left else 1
+        ones = _CN_DIGITS.get(right, 0) if right else 0
+        return tens * 10 + ones
+    total = 0
+    for ch in s:
+        if ch not in _CN_DIGITS:
+            return None
+        total = total * 10 + _CN_DIGITS[ch]
+    return total
+
+
+def normalize_phone(raw: Any) -> Optional[str]:
+    """手机号规范化：138-0013-8001 / +86 13800138001 / 138 0013 8001 → 13800138001。
+
+    剥不干净或位数不对时返回 None，交由调用方决定是否降级建档。
+    """
+    if not raw:
+        return None
+    digits = re.sub(r"\D", "", str(raw))
+    if len(digits) == 13 and digits.startswith("86"):
+        digits = digits[2:]
+    if len(digits) == 11 and digits[0] == "1" and digits[1] in "3456789":
+        return digits
+    return None
+
+
+def extract_phone_from_text(text: str) -> Optional[str]:
+    """从任意简历文本里捞出手机号并规范化（容忍分隔符与 86 区号）。
+
+    为什么需要：调用链里的兜底正则只认「裸 11 位」，而真实简历里大量写成
+    "138-0013-8001""138 0013 8001"。实测 LLM 输出不稳定（有几次完全不给 phone），
+    一旦兜底正则也抓不到，简历就完全无法建档——这里放宽匹配把这条退路堵上。
+    """
+    if not text:
+        return None
+    for m in re.finditer(r"1[3-9]\d(?:[\s\-]?\d){8}", text):
+        got = normalize_phone(m.group(0))
+        if got:
+            return got
+    return None
+
+
+def normalize_education(raw: Any) -> Optional[str]:
+    """学历规范化：从"本科/硕士"、"硕士及以上"、"本科在读"、"大专"中取最高学历。
+
+    取不到任何已知学历关键词时返回 None（交由调用方降级）。
+    """
+    if not raw:
+        return None
+    text = str(raw)
+    best, best_rank = None, 0
+    for key, rank in _EDU_RANK.items():
+        if key in text and rank > best_rank:
+            best, best_rank = key, rank
+    if best is None:
+        return None
+    return _EDU_CANON.get(best, best)
+
+
+def normalize_experience_years(raw: Any, fallback_text: str = "") -> Optional[int]:
+    """工作年限规范化：5 / "五年" / "5年工作经验" → 5。
+
+    **取值优先级：原文规则提取 > LLM 推断值。**
+    实测教训：简历里写的是"五年后端研发经验"，LLM 却返回 7。若直接采信 LLM 的
+    数字，错误值会一路写进库且无法事后分辨来源。规则层是直接从原文正则匹配出来的，
+    更贴近候选人自己声明的事实；只有原文里根本没提年限（如应届生、简历极简）时，
+    才退回使用 LLM 的推断值。
+    """
+    # 1) 先从原文规则提取（更可信）
+    if fallback_text:
+        # 「年」与「经验/经历」之间允许少量修饰词（实测简历里常见
+        # "五年后端研发经验""三年Java开发经历"这类写法），但不允许跨句号，
+        # 避免把不相干的句子粘进来。
+        # 前置 (?<!\d) 很关键：没有它，"2019年工作经验" 会被从 "9" 处起匹配成 9 年。
+        m = re.search(r"(?<!\d)(\d{1,2})\s*年[^，。；、\n]{0,12}?(?:经验|经历)",
+                      fallback_text)
+        if m:
+            return int(m.group(1))
+        m = re.search(r"(?<![\d一二两三四五六七八九十])([一二两三四五六七八九十]{1,3})"
+                      r"\s*年[^，。；、\n]{0,12}?(?:经验|经历)", fallback_text)
+        if m:
+            return _cn_to_int(m.group(1))
+
+    # 2) 原文未声明 → 才用 LLM 的推断值
+    if raw is not None:
+        if isinstance(raw, bool):
+            pass
+        elif isinstance(raw, (int, float)):
+            return max(0, int(raw))
+        else:
+            text = str(raw)
+            m = re.search(r"\d+", text)
+            if m:
+                return int(m.group())
+            m = re.search(r"([一二两三四五六七八九十]{1,3})\s*年", text)
+            if m:
+                return _cn_to_int(m.group(1))
+    return None
+
+
 class ResumeParser:
     """简历解析器"""
     

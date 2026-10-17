@@ -38,11 +38,17 @@ def _build_ollama_llm(
 
     本地 CPU 推理时 qwen3:1.7b 冷启动可达 ~100s，默认超时会让 Agent 恒定失败，
     因此显式注入 client_kwargs.timeout（由 OLLAMA_CHAT_TIMEOUT 控制）。
+
+    同时必须限制**生成长度**（num_predict）：只设超时是不够的——实测模型会在
+    一次调用里持续生成 3586 token 仍未结束（≈7.5 token/s），远超过 Nginx 的
+    300s 读超时，导致请求被网关掐断、档案不落库。设上限后失控生成退化为
+    「JSON 被截断 → 规则基线兜底」，是秒级失败而不是卡死。
     """
     params = dict(
         base_url=base_url or settings.OLLAMA_BASE_URL,
         model=model or settings.LLM_MODEL,
         temperature=temperature,
+        num_predict=settings.OLLAMA_NUM_PREDICT,
     )
     params.update(kwargs)
     params.setdefault("client_kwargs", {"timeout": settings.OLLAMA_CHAT_TIMEOUT})
@@ -63,6 +69,9 @@ def _build_silicon_flow_llm(
     key = settings.SILICON_FLOW_API_KEY
     if not key:
         raise ValueError("SILICON_FLOW_API_KEY 未配置，请在 .env 中设置")
+    # max_tokens 与本地 Ollama 的 num_predict 同理：给生成设上限，
+    # 避免模型在结构化抽取任务里无限输出。两者取值对齐，便于统一调参。
+    kwargs.setdefault("max_tokens", settings.OLLAMA_NUM_PREDICT)
     return ChatOpenAI(
         api_key=key,
         base_url=settings.SILICON_FLOW_BASE_URL,

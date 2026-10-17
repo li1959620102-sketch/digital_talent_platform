@@ -84,7 +84,10 @@ class TalentService:
                 education_records=[edu.model_dump() for edu in (talent_data.education_records or [])],
                 work_experiences=[work.model_dump() for work in (talent_data.work_experiences or [])],
                 skills_certificates=[skill.model_dump() for skill in (talent_data.skills_certificates or [])],
-                tags=talent_data.tags or []
+                tags=talent_data.tags or [],
+                resume_file_id=talent_data.resume_file_id,
+                resume_file_name=talent_data.resume_file_name,
+                is_parsed=talent_data.is_parsed,
             )
             
             db.add(talent)

@@ -169,6 +169,12 @@ services:
       - MINIO_SECURE=false
       # ── AI 推理 ──
       - OLLAMA_BASE_URL=http://ollama:11434
+      # ── 云端 LLM（SiliconFlow）──
+      # 未配置 SILICON_FLOW_API_KEY 时保持为空，get_agent_llm() 会自动回退本地 Ollama，
+      # 不会阻断启动。这里刻意不用 ${VAR:?} —— 密钥属于可选增强项，缺失不该让容器起不来。
+      - SILICON_FLOW_API_KEY=${SILICON_FLOW_API_KEY:-}
+      - SILICON_FLOW_BASE_URL=${SILICON_FLOW_BASE_URL:-https://api.siliconflow.cn/v1}
+      - SILICON_FLOW_MODEL=${SILICON_FLOW_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
       # ── 运行参数 ──
       - DEBUG=false
       # SECRET_KEY 不设默认值：缺失时 compose 直接报错，避免弱密钥误入生产。

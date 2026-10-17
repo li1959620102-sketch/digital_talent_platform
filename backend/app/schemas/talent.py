@@ -87,6 +87,11 @@ class TalentCreate(TalentBase):
     work_experiences: Optional[List[WorkExperienceBase]] = Field(default=[], description="工作经历")
     skills_certificates: Optional[List[SkillCertificateBase]] = Field(default=[], description="技能证书")
     tags: Optional[List[str]] = Field(default=[], description="标签列表")
+    # 以下三个由简历解析链路回填：文件已上传到对象存储后，把对象名与解析标记写回档案，
+    # 否则会出现「MinIO 里有文件、档案里没有引用」的断裂（实测过的真实缺陷）。
+    resume_file_id: Optional[str] = Field(None, description="简历文件对象名(MinIO)", max_length=128)
+    resume_file_name: Optional[str] = Field(None, description="简历原始文件名", max_length=512)
+    is_parsed: bool = Field(False, description="是否由简历解析生成")
 
 
 class TalentUpdate(BaseModel):

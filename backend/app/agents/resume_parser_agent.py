@@ -101,7 +101,12 @@ def extract_info(state: AgentState) -> AgentState:
             '"communication_ability":0-100,"innovation_ability":0-100,'
             '"teamwork_ability":0-100,"learning_ability":0-100,"summary":"综合评价一段话"}\n'
             "}\n"
-            "无法确定的字段填 null。"
+            "无法确定的字段填 null。\n"
+            # 长度约束：1.7B 小模型容易在结构化抽取里重复输出或自我解释，
+            # 一旦被 num_predict 截断，extract_json 会解析失败并退化成规则基线。
+            # 这里显式约束长度，降低被截断概率。
+            "严格要求：只输出上述 JSON 对象本身，不要加任何解释、前后缀或 markdown 代码块标记；"
+            "整个输出控制在 500 个汉字以内。"
         )
         resp = _llm.invoke(prompt)
         content = resp.content if hasattr(resp, "content") else str(resp)

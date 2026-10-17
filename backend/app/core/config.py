@@ -125,6 +125,13 @@ class Settings(BaseSettings):
     # RAG 问答恒定降级为"仅返回检索片段"。改为可配置，默认 300s。
     OLLAMA_CHAT_TIMEOUT: int = 300
     OLLAMA_EMBED_TIMEOUT: int = 60
+    # 单次生成的 token 上限。2026-10-17 实测：不设上限时，简历解析 Agent 的
+    # 一次调用在本地 CPU 上持续生成到 3586 token 仍未结束（≈7.5 token/s → 478s），
+    # 必然撞穿 Nginx `proxy_read_timeout 300s`，表现为「简历解析 504/不可用」。
+    # 这里设硬上限，让失控生成变成"被截断 → extract_json 失败 → 规则层兜底"，
+    # 即失败降级为秒级，而不是卡满网关超时。1024 足够容纳该 prompt 要求的
+    # talent + tags + portrait 三段 JSON（有富余）。
+    OLLAMA_NUM_PREDICT: int = 1024
 
     # Vanna NL2SQL 引擎（ChromaDB_VectorStore + Ollama 组合）
     VANNA_CHROMA_PATH: str = "./vanna_chroma"
