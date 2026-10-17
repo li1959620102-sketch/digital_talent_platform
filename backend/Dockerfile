@@ -4,7 +4,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 仅安装运行期依赖；Python 包均使用预编译 wheel，不在生产镜像中保留编译器。
-RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+# APT 源可切换：默认保持官方源（不改变原有行为），国内部署通过
+# --build-arg APT_MIRROR=https://mirrors.aliyun.com 走镜像加速。
+# 实测（2026-10-17 阿里云 ECS）：到 deb.debian.org 仅 77KB/s，
+# 阿里云镜像 557KB/s，差距 7 倍；tesseract 的系统包较大，不换源会让构建拖到十几分钟。
+ARG APT_MIRROR=http://deb.debian.org
+RUN sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install -y \
     --no-install-recommends \

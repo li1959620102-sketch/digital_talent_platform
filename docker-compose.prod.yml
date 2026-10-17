@@ -63,6 +63,8 @@ services:
         # 国内服务器建议在 .env 里写：
         #   PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+        # 系统包（tesseract）同样走镜像加速：实测官方源 77KB/s vs 阿里云 557KB/s。
+        APT_MIRROR: ${APT_MIRROR:-http://deb.debian.org}
     logging: *log-rotation
 
   nginx:
