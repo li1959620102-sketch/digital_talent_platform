@@ -20,6 +20,7 @@ from app.models.permission import User
 from app.models.talent import Talent as _Talent
 from app.utils.minio_client import MinioClient, BUCKET_RESUMES, BUCKET_IMPORTS
 from app.utils.resume_parser import (
+    detect_resume_extension,
     normalize_phone,
     normalize_education,
     normalize_experience_years,
@@ -302,31 +303,18 @@ async def parse_resume(
     current_user: User = Depends(AUTH_TALENT_PARSE)
 ):
     """解析简历（PDF/Word/图片），提取字段、生成标签与画像，并自动落库人才档案"""
-    ext = os.path.splitext(file.filename or "resume.pdf")[1].lower()
+    original_name = file.filename or "resume"
     file_content = await file.read()
-
-    # 通过 magic bytes 嗅探真实文件类型，纠正错误的扩展名
-    # （如 .pdf 扩展但内容是 txt；或反之）。覆盖常见四种二进制/文本场景。
-    def _detect_ext(content: bytes) -> str:
-        head = content[:8]
-        if head.startswith(b'%PDF-'):
-            return '.pdf'
-        if head.startswith(b'PK\x03\x04'):
-            return '.docx'
-        if head.startswith(b'\xd0\xcf\x11\xe0'):
-            return '.doc'
-        if head.startswith(b'\xff\xd8\xff') or head.startswith(b'\x89PNG'):
-            return '.png'
-        # 二进制嗅探失败时，改用"可打印字符占比"判定文本类（txt/md/csv）
-        sample = content[:4096]
-        printable = sum(1 for b in sample if 9 <= b <= 13 or 32 <= b < 127 or b >= 0x80)
-        if sample and printable / len(sample) > 0.85:
-            return '.txt'
-        return ''
-    real_ext = _detect_ext(file_content)
-    if real_ext and real_ext != ext:
-        logger.info(f"扩展名 {ext} 与内容不符，按真实类型纠正为 {real_ext}")
-        ext = real_ext
+    real_ext = detect_resume_extension(file_content, original_name)
+    if not real_ext:
+        raise HTTPException(status_code=400, detail="无法识别简历文件格式")
+    ext = real_ext
+    corrected_filename = f"resume{real_ext}"
+    if os.path.splitext(original_name)[1].lower() != real_ext:
+        logger.info(
+            "简历扩展名与内容不符，按识别结果纠正为 %s",
+            real_ext,
+        )
 
     # 显式大小校验（应用层兜底，避免依赖 Nginx 的 client_max_body_size）
     max_size = getattr(settings, "MAX_UPLOAD_SIZE", 52428800)  # 默认 50MB
@@ -339,19 +327,18 @@ async def parse_resume(
     # 上传到MinIO持久化存储
     minio_client = MinioClient(BUCKET_RESUMES)
     minio_object_name = f"resume_{uuid.uuid4().hex}{ext}"
-    minio_uploaded = True
+    minio_uploaded = False
     try:
-        minio_client.upload_file_for_bucket(
+        uploaded_name = minio_client.upload_file_for_bucket(
             file_object=file_content,
-            original_name=file.filename or "resume.pdf",
+            original_name=corrected_filename,
             bucket_name=BUCKET_RESUMES,
-            minio_object_name=minio_object_name
+            minio_object_name=minio_object_name,
         )
+        minio_object_name = uploaded_name or minio_object_name
+        minio_uploaded = True
     except Exception as e:
-        # 上传失败时不要把对象名写回档案：本地临时文件在解析后会被删除，
-        # 写回引用会指向一个根本不存在的对象（悬空引用）。
-        minio_uploaded = False
-        logger.warning(f"MinIO上传失败，本次不建立简历文件引用: {e}")
+        logger.warning("MinIO上传失败，本次不建立简历文件引用: %s", e)
 
     # 写入本地临时文件供解析用（解析完成后删除）
     # upload_dir = getattr(settings, "UPLOAD_DIR", "./uploads") or "./uploads"
@@ -366,10 +353,18 @@ async def parse_resume(
     with open(save_path, "wb") as f:
         f.write(file_content)
 
-    result = await resume_parser_agent.parse_resume(save_path, file.filename or "resume")
-
-    # 解析完成后删除本地临时文件（MinIO已有持久化副本）
-    _safe_remove(save_path)
+    try:
+        result = await resume_parser_agent.parse_resume(save_path, corrected_filename)
+    except Exception:
+        if minio_uploaded:
+            try:
+                minio_client.remove_object_for_bucket(BUCKET_RESUMES, minio_object_name)
+            except Exception as cleanup_error:
+                logger.warning("解析失败后清理简历对象失败: %s", cleanup_error)
+        raise
+    finally:
+        # 解析完成后删除本地临时文件（MinIO已有持久化副本）
+        _safe_remove(save_path)
 
     created_talent_id = None
     merged_existing_flag = False

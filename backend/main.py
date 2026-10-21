@@ -1,7 +1,7 @@
 """
 AI数字化人才平台 - FastAPI应用入口
 """
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 # from fastapi.middleware.gzip import GZipMiddleware  # 已移除：参考 large_health_reference 精简风格，由 Nginx gzip 替代
 from fastapi.responses import JSONResponse
@@ -25,6 +25,8 @@ import app.core.redis_client as redis_module
 from app.core.milvus_client import init_milvus
 from app.core.postgresql import init_pgsql_tables
 from app.core.seed import init_seed_data
+from app.agents.agent_runtime import runtime as agent_runtime
+from app.agents.dynamic_executor import build_recovery_runner
 from app.api import api_router
 from app.core.exceptions import AppException
 # from app.core.middleware import RequestLogMiddleware  # 已移除：参考 large_health_reference 精简风格，由 uvicorn access_log 替代
@@ -141,6 +143,9 @@ async def lifespan(app: FastAPI):
     # 初始化种子数据（默认组织 + 4 种角色 + 可选的环境变量初始超管账号）
     init_seed_data()
     logger.info("✅ 种子数据初始化完成（组织 + super_admin/admin/hr/user + 超管账号）")
+
+    recovered = agent_runtime.recover_tasks(build_recovery_runner)
+    logger.info("✅ Agent 任务恢复完成：恢复 %s 个可重建任务", recovered)
 
     logger.info(f"🎉 {settings.APP_NAME} v{settings.APP_VERSION} 启动成功!")
     
@@ -266,8 +271,8 @@ async def health_check():
 
 
 @app.get("/health/ready", tags=["健康检查"])
-async def readiness_check():
-    """生产就绪探针：核心数据库和 Redis 均可用时才接收流量。"""
+async def readiness_check(strict: bool = Query(False, description="严格检查向量库、对象存储和模型服务")):
+    """生产就绪探针；strict=true 时检查完整 AI 依赖链。"""
     checks = {"mysql": False, "postgres": False, "redis": False}
 
     try:
@@ -296,12 +301,57 @@ async def readiness_check():
     except Exception as exc:
         logger.warning(f"就绪检查 Redis 失败: {exc}")
 
+    if strict:
+        checks.update({"milvus": False, "minio": False, "llm": False})
+        try:
+            from pymilvus import connections, utility
+            if not connections.has_connection(settings.MILVUS_ALIAS):
+                connections.connect(
+                    alias=settings.MILVUS_ALIAS,
+                    host=settings.MILVUS_HOST,
+                    port=settings.MILVUS_PORT,
+                    user=settings.MILVUS_USER or None,
+                    password=settings.MILVUS_PASSWORD or None,
+                )
+            checks["milvus"] = bool(utility.get_server_version(using=settings.MILVUS_ALIAS))
+        except Exception as exc:
+            logger.warning(f"就绪检查 Milvus 失败: {exc}")
+
+        try:
+            from minio import Minio
+            endpoint = settings.MINIO_ENDPOINT.replace("http://", "").replace("https://", "")
+            client = Minio(endpoint, access_key=settings.MINIO_ACCESS_KEY,
+                           secret_key=settings.MINIO_SECRET_KEY, secure=settings.MINIO_SECURE)
+            await run_in_threadpool(client.list_buckets)
+            checks["minio"] = True
+        except Exception as exc:
+            logger.warning(f"就绪检查 MinIO 失败: {exc}")
+
+        try:
+            import httpx
+            base_url = settings.OLLAMA_BASE_URL.rstrip("/")
+            async with httpx.AsyncClient(timeout=3) as client:
+                response = await client.get(base_url + "/api/tags")
+                checks["llm"] = response.status_code < 500
+        except Exception as exc:
+            logger.warning(f"就绪检查 LLM 失败: {exc}")
+
+        if settings.DIFY_ENABLED:
+            checks["dify"] = False
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=3) as client:
+                    response = await client.get(settings.DIFY_API_BASE.rstrip("/") + "/health")
+                    checks["dify"] = response.status_code < 500
+            except Exception as exc:
+                logger.warning(f"就绪检查 Dify 失败: {exc}")
+
     if not all(checks.values()):
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "checks": checks},
+            content={"status": "not_ready", "strict": strict, "checks": checks},
         )
-    return {"status": "ready", "checks": checks}
+    return {"status": "ready", "strict": strict, "checks": checks}
 
 
 # 根路径

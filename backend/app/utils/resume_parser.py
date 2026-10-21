@@ -11,6 +11,33 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_RESUME_FORMATS = {".pdf", ".doc", ".docx", ".txt", ".jpg", ".jpeg", ".png"}
+
+
+def detect_resume_extension(content: bytes, filename: str = "") -> Optional[str]:
+    """根据文件签名/内容识别受支持的简历格式。"""
+    if content.startswith(b"%PDF-"):
+        return ".pdf"
+    if content.startswith(b"PK\x03\x04"):
+        return ".docx"
+    if content.startswith(b"\xd0\xcf\x11\xe0"):
+        return ".doc"
+    if content.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+
+    sample = content[:4096]
+    fallback = Path(filename).suffix.lower()
+    # 明确拒绝可疑的可执行/压缩文件，即使其前几个字节全部可打印。
+    if fallback in {".exe", ".dll", ".com", ".bat", ".cmd", ".zip", ".rar", ".7z"}:
+        return None
+    printable = sum(1 for b in sample if 9 <= b <= 13 or 32 <= b < 127 or b >= 0x80)
+    if sample and printable / len(sample) > 0.85:
+        return ".txt"
+
+    return fallback if fallback in SUPPORTED_RESUME_FORMATS else None
+
 
 # ==================== 规则技能词典 ====================
 # 用途：LLM 不可用（未配密钥 / 模型未就绪）时的降级路径也要能抽出技能。

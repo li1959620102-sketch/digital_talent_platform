@@ -291,6 +291,8 @@ async def submit_my_assessment(
     paper = db.query(TestPaper).filter(TestPaper.id == paper_id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="试卷不存在")
+    if str(getattr(paper.status, "value", paper.status)).lower() != "published":
+        raise HTTPException(status_code=400, detail="试卷尚未发布，不能提交测评")
 
     from app.services.assessment_service import AssessmentService
     svc = AssessmentService(db)

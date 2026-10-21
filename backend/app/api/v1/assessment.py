@@ -240,7 +240,18 @@ async def grade_real_answer(
         paper = db.query(TestPaper).filter(TestPaper.id == paper_id).first()
         if not paper:
             raise HTTPException(status_code=404, detail=f"试卷 {paper_id} 不存在")
-        talent_id = payload.get("talent_id") or 1
+        raw_talent_id = payload.get("talent_id")
+        if raw_talent_id is None or raw_talent_id == "":
+            raise HTTPException(status_code=400, detail="talent_id 必填")
+        try:
+            talent_id = int(raw_talent_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="talent_id 必须是正整数")
+        if talent_id <= 0:
+            raise HTTPException(status_code=400, detail="talent_id 必须是正整数")
+        from app.models.talent import Talent
+        if not db.query(Talent).filter(Talent.id == talent_id).first():
+            raise HTTPException(status_code=404, detail=f"人才 {talent_id} 不存在")
         answers = payload.get("answers") or []  # [{question_id, answer}]
         ans_map = {str(a.get("question_id")): (a.get("answer") or "") for a in answers if a.get("question_id") is not None}
 

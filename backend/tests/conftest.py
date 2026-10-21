@@ -4,6 +4,7 @@ pytest配置文件
 import pytest
 import sys
 import os
+import uuid
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -11,18 +12,13 @@ from sqlalchemy.pool import StaticPool
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# 设置测试环境变量（必须在导入app前设置）
+# 设置测试环境变量（必须在导入 app 前设置）。
+# 每次运行使用不可预测的专属后缀，不能让外部注入的生产变量覆盖测试隔离。
 os.environ['TESTING'] = 'true'
-
-# ── Milvus 测试隔离（重要）─────────────────────────────────────────────────
-# 本文件用 SQLite 内存库，测试里的自增 id 从 1 开始；而 Milvus 没有数据库级的
-# 事务回滚，测试写入会**真实落到运行中的集合里**。两个 id 空间一旦冲突，就会
-# 出现「测试上传的文件拿到 file_id=2 → vectorize 先删掉生产 file_id=2 的向量
-# 再写入测试向量」，结果是知识库向量被静默覆盖（实测 knowledge_base 72→67）。
-# 因此这里把三个集合全部指向 *_test 专用集合，会话结束时由 fixture 删除。
-os.environ.setdefault('MILVUS_COLLECTION_TALENT', 'talent_resume_test')
-os.environ.setdefault('MILVUS_COLLECTION_JOB', 'job_position_test')
-os.environ.setdefault('MILVUS_COLLECTION_KNOWLEDGE', 'knowledge_base_test')
+os.environ['TEST_RUN_ID'] = uuid.uuid4().hex[:12]
+os.environ['MILVUS_COLLECTION_TALENT'] = f"talent_resume_test_{os.environ['TEST_RUN_ID']}"
+os.environ['MILVUS_COLLECTION_JOB'] = f"job_position_test_{os.environ['TEST_RUN_ID']}"
+os.environ['MILVUS_COLLECTION_KNOWLEDGE'] = f"knowledge_base_test_{os.environ['TEST_RUN_ID']}"
 
 # 导入所有模型以确保表结构注册
 from app.core.database import Base  # noqa: E402
@@ -111,9 +107,11 @@ def isolated_minio_buckets():
         )
 
         buckets = [BUCKET_RESUMES, BUCKET_KNOWLEDGE, BUCKET_IMPORTS]
-        # 若后缀没生效（环境变量没读到），说明不是测试环境，不要动真实桶
-        if not all(b.endswith("-test") for b in buckets):
-            print("[conftest] MinIO 桶隔离未启用（桶名无 -test 后缀），跳过清理")
+        # 只允许清理本次运行生成的唯一测试桶；后缀缺失或运行 ID 不一致时绝不触碰对象存储。
+        run_id = os.environ.get("TEST_RUN_ID", "")
+        expected_suffix = f"-test-{run_id}" if run_id else ""
+        if not run_id or not all(b.endswith(expected_suffix) for b in buckets):
+            print("[conftest] MinIO 桶隔离未启用（缺少当前运行专属后缀），跳过清理")
             yield
             return
 

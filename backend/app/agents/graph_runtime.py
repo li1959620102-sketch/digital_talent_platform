@@ -39,7 +39,7 @@ def invoke_graph(graph: Any, state: Dict[str, Any], thread_id: Optional[str] = N
     configurable.thread_id，否则抛 "Checkpointer requires ... 'configurable' keys"。
     这里自动生成 thread_id（或使用调用方传入的），保证 5 大 Agent 的 invoke 都能正确执行。
     """
-    config = {"configurable": {"thread_id": thread_id or f"agent-{uuid.uuid4().hex[:12]}"}}
+    config = {"configurable": {"thread_id": thread_id or state.get("thread_id") or state.get("session_id") or f"agent-{uuid.uuid4().hex[:12]}"}}
     return graph.invoke(state, config=config)
 
 

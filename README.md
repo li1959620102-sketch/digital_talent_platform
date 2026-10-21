@@ -10,6 +10,31 @@
 
 ## 核心功能
 
+### Agent 统一运行时
+
+五个业务 Agent 现在都可以通过统一任务控制面执行：任务会生成可审计计划，携带会话 ID，记录短期上下文，支持失败重试、人工审批、转交和 Prometheus 指标。
+
+- `POST /api/v1/agent/tasks`：提交任务，`requires_approval=true` 时先暂停等待审批
+- `dynamic_plan=true`：启用 LLM 动态拆解目标；LLM 不可用时自动回退到可审计模板计划
+- `GET /api/v1/agent/tasks/{task_id}`：查询状态、计划、尝试次数和结果
+- `POST /api/v1/agent/tasks/{task_id}/approve`：批准/拒绝并恢复任务
+- `POST /api/v1/agent/tasks/{task_id}/cancel`：取消排队或重试边界上的任务
+- `POST /api/v1/agent/tasks/{task_id}/handoff`：转交人工队列或其他责任人
+- `GET /api/v1/agent/metrics`：读取 Agent 调用次数、成功率和 P95 延迟
+- `POST /api/v1/agent/plan`：由 Supervisor 根据目标和能力目录生成并校验动态计划
+
+生产验收：`/health` 只检查进程存活，`/health/ready?strict=true` 会额外检查 Milvus、MinIO、LLM（以及启用时的 Dify）。部署服务启动后可执行 `python backend/scripts/verify_production.py --base-url http://127.0.0.1:8000`，脚本只读检查，不会写入业务数据。
+
+配置 `AGENT_REDIS_URL`（或已有 `REDIS_URI`）后，任务状态写入 Redis；未配置时使用进程内存，适合本地开发。审计事件写入 `backend/logs/agent_audit.jsonl`，可通过 `AGENT_AUDIT_LOG` 覆盖路径。
+
+原有五个 Agent 路由继续兼容同步调用；传入 `async_mode=true` 或 `wait=false` 后会统一返回 `202 + task_id`，再通过任务查询接口获取结果。生产环境建议统一使用异步模式，并配置 `AGENT_REDIS_URL` 以支持多实例部署。提交任务可携带 `idempotency_key`，网络重试不会重复执行；计划中的高风险步骤会自动进入人工审批。
+
+第一阶段已增加统一领域 Agent 协议：`agent_contracts.py` 定义上下文、能力、计划步骤、结果和恢复动作；`domain_agents.py` 将五个现有业务 Agent 注册为 9 项可发现能力。Supervisor 后续应通过 `/api/v1/agent/capabilities` 获取能力目录，不再直接硬编码业务函数。
+
+第二阶段已增加 `supervisor.py`：支持按用户目标选择多个领域能力、生成依赖关系、校验能力是否存在，并在启用 `dynamic_plan=true` 时尝试使用 LLM，失败自动回退规则计划。
+
+第三阶段已增加 `dynamic_executor.py`：提交 `agent=supervisor` 的任务后，系统会按照计划依赖动态调用能力注册表中的领域 Agent；同一层无依赖步骤可以并行执行，能力权限会在执行前校验，失败会触发一次受控重规划并保留上下文。应用启动时会从 Redis 恢复可重建的 Supervisor 任务。
+
 ### P0功能（首次验收必须完成）
 
 1. **人才智能档案管理** - AI简历解析、智能标签、人才画像、语义检索
@@ -58,7 +83,7 @@ digital_talent_platform/
 │   │   └── utils/             # 工具函数（JWT/JSON/字符串/Embedding）
 │   ├── alembic/               # 数据库迁移
 │   ├── dify_chatflows/        # Dify智能体配置（5个YAML）
-│   ├── tests/                 # 测试套件（97 个 pytest 用例，含 RBAC 安全回归与生产配置基线；另 tests/dify/ 为 Dify 端到端验证脚本）
+│   ├── tests/                 # 测试套件（124 个 pytest 用例，含 Agent 编排、恢复、幂等、取消、RBAC 安全回归与生产配置基线；另 tests/dify/ 为 Dify 端到端验证脚本）
 │   ├── migrations/            # 历史数据迁移报告（migration_*.json）
 │   ├── media/  uploads/       # 运行期媒体/上传临时目录（MinIO为持久化副本）
 │   ├── logs/                  # 运行日志（app.log 活跃，gitignore）

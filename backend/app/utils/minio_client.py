@@ -211,6 +211,14 @@ class MinioClient:
             logger.error(f"获取文件失败: {str(e)}")
             raise e
 
+    def remove_object_for_bucket(self, bucket_name: str, object_name: str) -> None:
+        """删除指定桶中的对象。"""
+        try:
+            self.client.remove_object(bucket_name=bucket_name, object_name=object_name)
+        except S3Error as e:
+            logger.error(f"删除MinIO对象失败: {bucket_name}/{object_name}: {e}")
+            raise
+
     def download_file(self, object_name: str, file_path: str) -> str:
         """从默认桶下载文件到本地路径"""
         try:
@@ -249,7 +257,8 @@ class MinioClient:
 # 注意：S3/MinIO 的桶名规则不允许下划线（会报 InvalidBucketName），
 # 所以这里必须用连字符而不是 _test。
 _TESTING = os.getenv("TESTING", "").lower() in ("true", "1", "yes")
-_SUFFIX = "-test" if _TESTING else ""
+_TEST_RUN_ID = os.getenv("TEST_RUN_ID", "")
+_SUFFIX = f"-test-{_TEST_RUN_ID}" if _TESTING and _TEST_RUN_ID else ("-test" if _TESTING else "")
 
 BUCKET_RESUMES = "resumes" + _SUFFIX            # 简历文件
 BUCKET_KNOWLEDGE = "knowledge-docs" + _SUFFIX   # 知识文档

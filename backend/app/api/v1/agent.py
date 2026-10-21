@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_mysql_session, get_mysql_engine
 from app.schemas.common import ResponseModel
-from app.core.rbac import PermCode, require_permission_or_403
+from app.core.rbac import PermCode, require_permission_or_403, get_user_permission_codes
 
 from app.agents.resume_parser_agent import resume_parser_agent
 from app.agents.assessment_agent import AssessmentAnalysisAgent
@@ -20,6 +20,11 @@ from app.agents.matching_agent import MatchingAgent
 from app.agents.training_agent import training_agent
 from app.agents.data_decision_agent import data_decision_agent
 from app.services.dify_adapter import dify_adapter
+from app.agents.agent_runtime import runtime as agent_runtime
+from app.agents.domain_agents import domain_registry
+from app.agents.supervisor import supervisor_planner
+from app.agents.agent_contracts import AgentContext
+from app.agents.dynamic_executor import dynamic_executor
 
 router = APIRouter()
 AUTH_AGENT_EXECUTE = require_permission_or_403(PermCode.AGENT_EXECUTE)
@@ -63,6 +68,8 @@ async def parse_resume_agent(
     current_user: dict = Depends(AUTH_AGENT_EXECUTE)
 ):
     """档案解析 Agent：简历解析→字段标准化→标签→画像→查重"""
+    if payload.get("async_mode") is True or payload.get("wait") is False:
+        return _submit_legacy_async("resume", payload, current_user)
     file_path = payload.get("file_path")
     file_name = payload.get("file_name", "resume")
     # 兼容 Dify Workflow 传纯文本 resume_text（无文件路径场景）：写临时文件再走原流程
@@ -92,6 +99,8 @@ async def analyze_assessment_agent(
     current_user: dict = Depends(AUTH_AGENT_EXECUTE)
 ):
     """测评分析 Agent：结果分析→雷达图→优劣分析→发展建议"""
+    if payload.get("async_mode") is True or payload.get("wait") is False:
+        return _submit_legacy_async("assessment", payload, current_user)
     # result_id = payload.get("result_id")
     # 兼容 Dify Workflow 传 assessment_result_id
     result_id = payload.get("result_id") or payload.get("assessment_result_id")
@@ -112,6 +121,8 @@ async def match_position_agent(
     current_user: dict = Depends(AUTH_AGENT_EXECUTE)
 ):
     """岗位匹配 Agent：硬条件过滤 + 向量匹配 + LLM 精排"""
+    if payload.get("async_mode") is True or payload.get("wait") is False:
+        return _submit_legacy_async("matching", payload, current_user)
     position_id = payload.get("position_id")
     talent_id = payload.get("talent_id")
     try:
@@ -137,6 +148,8 @@ async def recommend_training_agent(
     current_user: dict = Depends(AUTH_AGENT_EXECUTE)
 ):
     """培训赋能 Agent：能力缺口诊断 + 个性化学习路径 + 课程推荐"""
+    if payload.get("async_mode") is True or payload.get("wait") is False:
+        return _submit_legacy_async("training", payload, current_user)
     talent_id = payload.get("talent_id")
     position_id = payload.get("position_id")
     if not talent_id:
@@ -156,6 +169,8 @@ async def data_analysis_agent(
     current_user: dict = Depends(AUTH_AGENT_EXECUTE)
 ):
     """数据决策 Agent：结构/趋势/异常分析 或 NL2SQL 自然语言查询"""
+    if payload.get("async_mode") is True or payload.get("wait") is False:
+        return _submit_legacy_async("data_decision", payload, current_user)
     analysis_type = payload.get("analysis_type", "structure")
     question = payload.get("question")
     try:
@@ -293,3 +308,196 @@ async def dify_deep_report_query(
         return ResponseModel(code=200, message="深度报告生成失败", data=data)
     # pending / running
     return ResponseModel(code=202, message="深度报告生成中", data=data)
+
+
+# ==================== 统一 Agent 任务控制面 ====================
+_AGENT_NAMES = {"supervisor", "resume", "assessment", "matching", "training", "data_decision"}
+_task_runners: Dict[str, Any] = {}
+
+
+def _actor(user: dict) -> Optional[str]:
+    if not isinstance(user, dict):
+        return str(getattr(user, "id", None) or getattr(user, "user_id", None) or getattr(user, "username", None) or "") or None
+    return str((user or {}).get("id") or (user or {}).get("user_id") or
+               (user or {}).get("username") or (user or {}).get("sub") or "") or None
+
+
+def _ensure_task_access(task: Dict[str, Any], user: Any) -> None:
+    """任务级访问控制：仅任务所有者或超级管理员可读取、审批、转交和取消。"""
+    if getattr(user, "is_superuser", False):
+        return
+    owner = task.get("owner")
+    actor = _actor(user)
+    if owner and actor != owner:
+        raise HTTPException(status_code=403, detail="无权操作该 Agent 任务")
+
+
+def _build_agent_runner(agent: str, inputs: Dict[str, Any]):
+    """把现有五个业务 Agent 接入统一任务运行时。"""
+    if agent == "resume":
+        file_path = inputs.get("file_path")
+        file_name = inputs.get("file_name", "resume")
+        if not file_path and inputs.get("resume_text"):
+            import os, tempfile
+            file_path = os.path.join(tempfile.gettempdir(), f"agent_resume_{_uuid.uuid4().hex}.txt")
+            with open(file_path, "w", encoding="utf-8") as fh:
+                fh.write(str(inputs["resume_text"]))
+            file_name = "resume.txt"
+        if not file_path:
+            raise HTTPException(status_code=400, detail="resume Agent 需要 file_path 或 resume_text")
+        return lambda: resume_parser_agent.parse_resume(file_path, file_name)
+    if agent == "assessment":
+        result_id = inputs.get("result_id") or inputs.get("assessment_result_id")
+        if not result_id:
+            raise HTTPException(status_code=400, detail="assessment Agent 需要 result_id")
+        return lambda: AssessmentAnalysisAgent().analyze(int(result_id))
+    if agent == "matching":
+        if inputs.get("position_id"):
+            return lambda: MatchingAgent().match_position_to_talents(int(inputs["position_id"]))
+        if inputs.get("talent_id"):
+            return lambda: MatchingAgent().match_talent_to_positions(int(inputs["talent_id"]))
+        raise HTTPException(status_code=400, detail="matching Agent 需要 position_id 或 talent_id")
+    if agent == "training":
+        if not inputs.get("talent_id"):
+            raise HTTPException(status_code=400, detail="training Agent 需要 talent_id")
+        return lambda: training_agent.analyze(int(inputs["talent_id"]), int(inputs["position_id"]) if inputs.get("position_id") else None)
+    if agent == "data_decision":
+        analysis_type = inputs.get("analysis_type", "structure")
+        if analysis_type == "nl2sql":
+            return lambda: data_decision_agent.analyze(analysis_type="nl2sql", nl2sql_question=inputs.get("question"), engine=get_mysql_engine())
+        return lambda: data_decision_agent.analyze(analysis_type=analysis_type)
+    raise HTTPException(status_code=400, detail="不支持的 Agent")
+
+
+def _submit_legacy_async(agent: str, payload: Dict[str, Any], current_user: dict):
+    """旧路由的异步兼容入口；默认保持原同步响应，async_mode=true 时返回任务。"""
+    inputs = dict(payload)
+    runner = _build_agent_runner(agent, inputs)
+    task = agent_runtime.create_task(
+        agent,
+        payload.get("goal") or f"执行 {agent} Agent",
+        inputs,
+        session_id=payload.get("session_id"),
+        requires_approval=bool(payload.get("requires_approval", False)),
+        owner=_actor(current_user),
+        dynamic_plan=bool(payload.get("dynamic_plan", False)),
+        idempotency_key=payload.get("idempotency_key"),
+    )
+    _task_runners[task["task_id"]] = runner
+    if task["status"] == "pending":
+        agent_runtime._executor.submit(agent_runtime._run, task["task_id"], runner)
+    return ResponseModel(code=202, message="Agent 异步任务已提交", data=task)
+
+
+@router.post("/tasks", response_model=ResponseModel, summary="提交可追踪 Agent 任务")
+async def submit_agent_task(payload: Dict[str, Any], db: Session = Depends(get_mysql_session), current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    agent = (payload.get("agent") or "").strip().lower()
+    if agent not in _AGENT_NAMES:
+        raise HTTPException(status_code=400, detail=f"agent 必须是 {sorted(_AGENT_NAMES)}")
+    inputs = payload.get("inputs") or {}
+    permissions = get_user_permission_codes(current_user, db)
+    goal = payload.get("goal") or f"执行 {agent} Agent"
+    supervisor_plan = None
+    if agent == "supervisor":
+        supervisor_plan = supervisor_planner.plan(
+            goal,
+            inputs,
+            use_llm=payload.get("dynamic_plan"),
+        )
+        runner = None
+    else:
+        runner = _build_agent_runner(agent, inputs)
+    task = agent_runtime.create_task(agent, goal, inputs,
+                                     session_id=payload.get("session_id"),
+                                     requires_approval=bool(payload.get("requires_approval", False)),
+                                     owner=_actor(current_user),
+                                     dynamic_plan=bool(payload.get("dynamic_plan", False)),
+                                     plan_override=supervisor_plan,
+                                     permissions=permissions,
+                                     idempotency_key=payload.get("idempotency_key"))
+    if agent == "supervisor":
+        runner = lambda: dynamic_executor.execute(
+            supervisor_plan,
+            AgentContext.create(task_id=task["task_id"], session_id=task["session_id"], user_id=_actor(current_user), metadata={"permissions": set(task.get("permissions", []))}),
+            replan_fn=lambda goal, inputs, context: supervisor_planner.plan(goal, inputs, context=context, use_llm=payload.get("dynamic_plan")),
+        )
+    _task_runners[task["task_id"]] = runner
+    if task["status"] == "pending":
+        agent_runtime._executor.submit(agent_runtime._run, task["task_id"], runner)
+    return ResponseModel(code=202, message="Agent 任务已提交", data=task)
+
+
+@router.get("/tasks/{task_id}", response_model=ResponseModel, summary="查询 Agent 任务")
+async def get_agent_task(task_id: str, current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    task = agent_runtime.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _ensure_task_access(task, current_user)
+    return ResponseModel(code=200, message="查询成功", data=task)
+
+
+@router.post("/tasks/{task_id}/approve", response_model=ResponseModel, summary="审批并恢复 Agent 任务")
+async def approve_agent_task(task_id: str, payload: Dict[str, Any], current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    approved = bool(payload.get("approved", False))
+    existing = agent_runtime.get(task_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _ensure_task_access(existing, current_user)
+    task = agent_runtime.approve(task_id, approved, _actor(current_user))
+    if approved and task.get("status") == "pending" and task_id in _task_runners:
+        agent_runtime._executor.submit(agent_runtime._run, task_id, _task_runners[task_id])
+    return ResponseModel(code=200, message="已批准并恢复" if approved else "已拒绝", data=agent_runtime.get(task_id))
+
+
+@router.post("/tasks/{task_id}/cancel", response_model=ResponseModel, summary="取消 Agent 任务")
+async def cancel_agent_task(task_id: str, current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    task = agent_runtime.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _ensure_task_access(task, current_user)
+    task = agent_runtime.cancel(task_id, _actor(current_user))
+    return ResponseModel(code=200, message="任务已取消", data=task)
+
+
+@router.post("/tasks/{task_id}/handoff", response_model=ResponseModel, summary="转交 Agent 任务")
+async def handoff_agent_task(task_id: str, payload: Dict[str, Any], current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    assignee = (payload.get("assignee") or "").strip()
+    if not assignee:
+        raise HTTPException(status_code=400, detail="assignee 必填")
+    existing = agent_runtime.get(task_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _ensure_task_access(existing, current_user)
+    task = agent_runtime.handoff(task_id, assignee, _actor(current_user))
+    return ResponseModel(code=200, message="任务已转交", data=task)
+
+
+@router.get("/metrics", summary="Agent 指标")
+async def agent_metrics(current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(agent_runtime.metrics.prometheus(), media_type="text/plain; version=0.0.4")
+
+
+@router.get("/capabilities", response_model=ResponseModel, summary="查询 Agent 能力目录")
+async def agent_capabilities(current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    """向 Supervisor/Planner 暴露可选领域 Agent 和能力，避免硬编码调用函数。"""
+    return ResponseModel(code=200, message="能力目录查询成功", data={
+        "agents": domain_registry.list_agents(),
+        "capabilities": domain_registry.list_capabilities(),
+    })
+
+
+@router.post("/plan", response_model=ResponseModel, summary="生成 Supervisor 动态计划")
+async def create_supervisor_plan(payload: Dict[str, Any], current_user: dict = Depends(AUTH_AGENT_EXECUTE)):
+    """只生成并校验计划，不执行任务，供前端预览和人工审批。"""
+    goal = (payload.get("goal") or "").strip()
+    if not goal:
+        raise HTTPException(status_code=400, detail="goal 必填")
+    context = AgentContext.create(session_id=payload.get("session_id"), user_id=_actor(current_user))
+    plan = supervisor_planner.plan(
+        goal,
+        payload.get("inputs") or {},
+        context=context,
+        use_llm=payload.get("dynamic_plan"),
+    )
+    return ResponseModel(code=200, message="Supervisor 计划生成成功", data=plan)

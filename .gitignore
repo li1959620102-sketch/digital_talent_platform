@@ -172,3 +172,6 @@ backend/media/*
 
 # 测试上传残留（test_api_integration 的 policy.txt 副本，SHA-256 = e1d303875035…）
 backend/media/knowledge/179215*.txt
+
+# 运行时上传残留（时间戳 1792xxxxxxxxx 命名的副本，非知识库正式文档）
+backend/media/knowledge/1792*.txt

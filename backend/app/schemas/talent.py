@@ -158,13 +158,18 @@ class ResumeParseRequest(BaseModel):
 
 class ResumeParseResponse(BaseModel):
     """简历解析响应"""
+    success: Optional[bool] = Field(None, description="解析是否成功")
     talent_data: Optional[dict] = Field(None, description="解析的人才数据（原始抽取结果，字段可能不完整）")
-    confidence: float = Field(..., description="解析置信度", ge=0, le=1)
+    confidence: float = Field(0, description="解析置信度", ge=0, le=1)
     raw_text: Optional[str] = Field(None, description="原始文本")
+    tags: Optional[List[str]] = Field(None, description="解析标签")
+    portrait: Optional[dict] = Field(None, description="人才画像")
     warnings: List[str] = Field(default=[], description="警告信息")
     created_talent_id: Optional[int] = Field(None, description="自动建档后的人才ID（未建档则为空）")
     merged_existing: bool = Field(False, description="手机号或邮箱冲突时是否已并入现有档案")
     merge_message: Optional[str] = Field(None, description="冲突并入时的提示信息")
+    resume_file_id: Optional[str] = Field(None, description="简历文件对象名(MinIO)")
+    resume_vector_id: Optional[int] = Field(None, description="简历向量ID")
 
 
 class TalentSearchRequest(BaseModel):
